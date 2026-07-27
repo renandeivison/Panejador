@@ -207,6 +207,36 @@ const Calc = (() => {
       }
     } else if (purchase.paymentType === 'subscription') {
       const firstInv = firstInvoiceOf();
+
+      if (purchase.installmentsCount) {
+        // Assinatura de prazo determinado com quantidade/posição informadas
+        // explicitamente pelo usuário — mesma mecânica de "já estou na parcela X de N"
+        // usada no parcelamento, permitindo cadastrar uma assinatura em andamento.
+        const n = Math.max(1, purchase.installmentsCount);
+        const startAt = Math.min(Math.max(1, purchase.startInstallmentNumber || 1), n);
+        for (let i = 0; i < n; i++) {
+          const number = i + 1;
+          const invoiceMonth = addMonths(firstInv.invoiceMonth, number - startAt);
+          const inv = invoiceDetailsForMonth(card, invoiceMonth);
+          const splits = splitsForInstallment(purchase.splits, total, total);
+          rows.push({
+            id: DB.uid(),
+            purchaseId: purchase.id,
+            cardId: card.id,
+            number,
+            totalInstallments: n,
+            amount: total,
+            purchaseDate: number === startAt ? purchase.purchaseDate : `${invoiceMonth}-01`,
+            invoiceMonth: inv.invoiceMonth,
+            invoiceDueDate: inv.dueDate,
+            kind: 'subscription',
+            splits,
+            status: 'planned',
+          });
+        }
+        return rows;
+      }
+
       let horizonEnd = SUBSCRIPTION_HORIZON_MONTHS;
       if (purchase.subscriptionEndDate) {
         const endMonth = monthRefOf(purchase.subscriptionEndDate);
@@ -282,18 +312,16 @@ const Calc = (() => {
     ownCardResponsibility = round2(ownCardResponsibility);
     thirdPartyResponsibility = round2(thirdPartyResponsibility);
 
-    // reembolsos efetivamente recebidos neste mês (pela data do reembolso, não da compra)
-    const reimbursementsOfMonth = (data.reimbursements || []).filter((r) => monthRefOf(r.date) === monthRef);
-    const reimbursementsThisMonth = round2(reimbursementsOfMonth.reduce((a, r) => a + r.amount, 0));
-
     // comprometido = despesas próprias + fatura total (dinheiro que efetivamente sai da conta)
     const committed = round2(expenseTotal + cardInvoiceTotal);
 
-    // saldo projetado = receitas - despesas próprias - faturas totais dos cartões
-    const projectedBalance = round2(incomeTotal - expenseTotal - cardInvoiceTotal);
-
-    // valores a receber de pessoas relativos a compras deste mês (informativo, não altera o saldo)
+    // valores a receber de pessoas relativos a compras deste mês
     const receivableThisMonth = thirdPartyResponsibility;
+
+    // saldo projetado = receitas + a receber de pessoas - despesas próprias - faturas totais
+    // dos cartões. Assume-se que o valor devido por terceiros é sempre recebido integralmente
+    // no início do mês — por isso soma no saldo, e não existe mais controle de reembolso parcial.
+    const projectedBalance = round2(incomeTotal + receivableThisMonth - expenseTotal - cardInvoiceTotal);
 
     return {
       monthRef,
@@ -306,8 +334,6 @@ const Calc = (() => {
       thirdPartyResponsibility,
       receivableThisMonth,
       receivableByPerson,
-      reimbursementsThisMonth,
-      reimbursementsOfMonth,
       byCard,
       incomeTxs,
       expenseTxs,
@@ -315,26 +341,28 @@ const Calc = (() => {
     };
   }
 
-  // ---------- Resumo por pessoa (dívidas e reembolsos) ----------
-  function computePersonSummary(personId, data) {
+  // ---------- Resumo por pessoa ----------
+  // Valor devido por uma pessoa: total histórico (todas as compras vinculadas a ela) e,
+  // opcionalmente, o valor referente apenas a um mês específico. Não há mais controle de
+  // reembolso parcial — assume-se que o valor é sempre recebido integralmente no início do mês.
+  function computePersonSummary(personId, data, monthRef = null) {
     let totalDue = 0;
+    let monthDue = 0;
     const relatedInstallments = [];
     for (const inst of data.installments) {
       if (inst.status === 'cancelled') continue;
       for (const sp of inst.splits) {
         if (sp.personId === personId) {
           totalDue += sp.amount;
+          if (monthRef && inst.invoiceMonth === monthRef) monthDue += sp.amount;
           relatedInstallments.push({ inst, amount: sp.amount });
         }
       }
     }
     totalDue = round2(totalDue);
+    monthDue = round2(monthDue);
 
-    const reimbursements = data.reimbursements.filter((r) => r.personId === personId);
-    const totalPaid = round2(reimbursements.reduce((a, r) => a + r.amount, 0));
-    const pending = round2(totalDue - totalPaid);
-
-    return { personId, totalDue, totalPaid, pending, relatedInstallments, reimbursements };
+    return { personId, totalDue, monthDue, relatedInstallments };
   }
 
   // ---------- Totais de cartão (limite usado, faturas) ----------

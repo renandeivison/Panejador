@@ -306,6 +306,13 @@ h1, h2, h3, h4 { font-family: var(--font-display); margin: 0; letter-spacing: -0
 }
 .tag-reversal { background: var(--red-soft); color: var(--red); border-color: rgba(224,57,62,0.25); }
 .tag-neutral { background: var(--blue-soft); color: var(--blue); border-color: rgba(63,111,224,0.22); }
+.tag-person {
+  font-weight: 800;
+  background: color-mix(in srgb, var(--tag-color) 24%, white);
+  color: color-mix(in srgb, var(--tag-color) 92%, black);
+  border: 1.5px solid color-mix(in srgb, var(--tag-color) 50%, white);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--tag-color) 30%, transparent);
+}
 
 /* ---------- Botões ---------- */
 .btn {

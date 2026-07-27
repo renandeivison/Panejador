@@ -60,6 +60,7 @@ const ViewCards = (() => {
     const cs = Calc.computeCardSummary(card, Store.cache, month);
 
     container.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => App.navigate('cards') }, '← Voltar para cartões'));
+    container.appendChild(el('button', { class: 'btn btn-primary btn-sm', style: 'margin-left:8px', onclick: () => Forms.openCardPurchaseForm(null, () => App.rerender(), null, null, card.id) }, '+ Nova compra'));
     container.appendChild(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-left:8px', onclick: () => Forms.openImportInvoiceForm(card.id, () => App.rerender()) }, '📄 Importar fatura (CSV)'));
 
     container.appendChild(el('div', {
@@ -119,11 +120,13 @@ const ViewCards = (() => {
     const list = el('div', { class: 'list' });
     const items = cs.items.filter((i) => i.invoiceMonth === month).map((i) => {
       const purchase = Store.cache.purchases.find((p) => p.id === i.purchaseId);
-      const responsiblePersonId = i.splits.find((s) => s.personId)?.personId;
+      const isDivided = i.splits.length >= 2;
+      const responsiblePersonId = !isDivided ? i.splits.find((s) => s.personId)?.personId : null;
       const person = responsiblePersonId ? Store.cache.people.find((p) => p.id === responsiblePersonId) : null;
       return {
         inst: i, purchase, title: purchase?.description || '—', date: i.purchaseDate, value: i.amount,
-        totalInstallments: i.totalInstallments || null, installmentNumber: i.number || null, personName: person?.name || '',
+        totalInstallments: i.totalInstallments || null, installmentNumber: i.number || null,
+        personName: isDivided ? 'Dividida' : (person?.name || ''), splits: i.splits,
       };
     }).sort(UI.sortComparator(detailSortKey));
     if (!items.length) list.appendChild(el('div', { class: 'empty-state glass' }, 'Nenhum lançamento neste mês.'));
@@ -131,15 +134,15 @@ const ViewCards = (() => {
       const i = it.inst, purchase = it.purchase;
       const cat = Store.cache.categories.find((c) => c.id === purchase?.category);
       list.appendChild(el('div', { class: 'list-item glass', onclick: () => Details.openInstallmentDetail(i, () => App.rerender()) }, [
-        UI.iconChip(i.kind === 'reversal' ? '↩️' : (cat?.icon || '💳'), i.amount < 0 ? '#e0393e' : (card.color || '#3f6fe0')),
+        UI.iconChip(i.kind === 'reversal' ? '↩️' : (cat?.icon || '💳'), i.kind === 'reversal' ? '#17a06b' : (card.color || '#3f6fe0')),
         el('div', { class: 'li-main' }, [
           el('div', { class: 'li-title' }, purchase?.description || '—'),
           el('div', { class: 'li-sub' }, [
             i.kind === 'installment' ? `Parcela ${i.number}/${i.totalInstallments}` : (i.kind === 'subscription' ? 'Assinatura' : (i.kind === 'reversal' ? 'Estorno' : 'Compra única')),
-            it.personName ? ` · ${it.personName}` : '',
+            UI.splitTag(it.splits, (e, p) => { e.stopPropagation(); App.navigate('personDetail', { id: p.id }); }),
           ]),
         ]),
-        el('div', { class: 'li-value', style: `color:${i.amount < 0 ? 'var(--red)' : 'var(--ink-900)'}` }, fmtMoney(i.amount)),
+        el('div', { class: 'li-value', style: `color:${i.kind === 'reversal' ? 'var(--green)' : 'var(--ink-900)'}` }, fmtMoney(i.amount)),
       ]));
     });
     container.appendChild(list);

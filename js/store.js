@@ -16,6 +16,7 @@ const Store = (() => {
       DB.getAll('transactions'), DB.getAll('purchases'), DB.getAll('installments'),
       DB.getAll('reimbursements'),
     ]);
+    categories.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
     Object.assign(cache, { categories, people, cards, transactions, purchases, installments, reimbursements });
     notify();
     return cache;
@@ -193,21 +194,6 @@ const Store = (() => {
     await DB.deleteMany('installments', toRemove.map((i) => i.id));
     await loadAll();
   }
-
-  // ---------- Estornos ----------
-  async function createReversal(reversal) {
-    reversal.isReversal = true;
-    reversal.paymentType = 'single';
-    reversal.amount = -Math.abs(reversal.amount);
-    return createCardPurchase(reversal);
-  }
-
-  // ---------- Reembolsos ----------
-  async function createReimbursement(obj) {
-    await DB.add('reimbursements', obj);
-    await loadAll();
-  }
-  async function deleteReimbursement(id) { await DB.delete('reimbursements', id); await loadAll(); }
 
   // ---------- Importação de fatura via CSV ----------
   // As linhas já pertencem a uma fatura conhecida (informada pelo usuário/arquivo),
@@ -436,7 +422,6 @@ const Store = (() => {
     upsertCard, deleteCard,
     createTransaction, updateTransaction, deleteTransaction,
     createCardPurchase, updateCardPurchase, updateSingleInstallment, deletePurchase, cancelSubscription,
-    createReversal, createReimbursement, deleteReimbursement,
     importCardStatement,
     resetMonth, resetAll,
     exportJSON, importJSON, toCSV,

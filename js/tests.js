@@ -59,6 +59,8 @@ const InternalTests = (() => {
       assert('Cenário 2: minha responsabilidade = 1200', eq(summary.ownCardResponsibility, 1200), summary.ownCardResponsibility);
       assert('Cenário 2: a receber = 800', eq(summary.thirdPartyResponsibility, 800), summary.thirdPartyResponsibility);
       assert('Cenário 2: mãe deve 800', eq(person.totalDue, 800), person.totalDue);
+      // saldo = 5000 (receita) + 800 (a receber, recebimento garantido) - 1000 (despesa) - 2000 (fatura) = 2800
+      assert('Cenário 2: saldo projetado soma o a receber = 2800', eq(summary.projectedBalance, 2800), summary.projectedBalance);
     }
 
     // ---- Cenário 3: compra 1000 dividida em 3 (mãe 400 / irmão 300 / eu 300) ----

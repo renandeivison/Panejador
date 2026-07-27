@@ -68,10 +68,10 @@ const ViewReports = (() => {
   function renderByPeople(body) {
     const data = Store.cache.people.map((p) => {
       const ps = Calc.computePersonSummary(p.id, Store.cache);
-      return { label: p.name, value: ps.pending, color: p.color || '#7b8cde', personId: p.id };
+      return { label: p.name, value: ps.totalDue, color: p.color || '#7b8cde', personId: p.id };
     }).filter((d) => d.value > 0);
-    body.appendChild(el('div', { class: 'section-title' }, 'Valores pendentes por pessoa'));
-    if (!data.length) { body.appendChild(emptyChart('Nenhum valor pendente de terceiros.')); return; }
+    body.appendChild(el('div', { class: 'section-title' }, 'Valores devidos por pessoa (total)'));
+    if (!data.length) { body.appendChild(emptyChart('Nenhum valor devido de terceiros.')); return; }
     body.appendChild(Charts.donutChart({ data, onSliceClick: (d) => App.navigate('personDetail', { id: d.personId }) }));
   }
 

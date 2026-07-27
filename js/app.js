@@ -9,21 +9,36 @@ const App = (() => {
     startMonth: null, // mês inicial de registro — meses anteriores não são navegáveis
   };
 
-  const NAV_ITEMS = [
+  // Desktop mantém a navegação completa (inclui Parcelas e Assinaturas como abas próprias).
+  const SIDE_NAV_ITEMS = [
     { key: 'dashboard', icon: Icons.dashboard, label: 'Início' },
     { key: 'transactions', icon: Icons.transactions, label: 'Lançamentos' },
     { key: 'cards', icon: Icons.cards, label: 'Cartões' },
     { key: 'installments', icon: Icons.installments, label: 'Parcelas' },
+    { key: 'subscriptions', icon: Icons.subscriptions, label: 'Assinaturas' },
     { key: 'people', icon: Icons.people, label: 'Pessoas' },
     { key: 'more', icon: Icons.more, label: 'Mais' },
   ];
+  // Mobile: barra inferior reduzida — Parcelas e Assinaturas ficam dentro de "Mais".
+  const BOTTOM_NAV_ITEMS = [
+    { key: 'dashboard', icon: Icons.dashboard, label: 'Início' },
+    { key: 'transactions', icon: Icons.transactions, label: 'Lançamentos' },
+    { key: 'cards', icon: Icons.cards, label: 'Cartões' },
+    { key: 'people', icon: Icons.people, label: 'Pessoas' },
+    { key: 'more', icon: Icons.more, label: 'Mais' },
+  ];
+  const ALL_NAV_KEYS = [...new Set([...SIDE_NAV_ITEMS, ...BOTTOM_NAV_ITEMS].map((i) => i.key))];
 
-  // rotas que não têm item próprio na navegação, mas pertencem a um item (para destacar como ativo)
+  // rotas que não têm item próprio na navegação (ou não em todas as listas), mas
+  // pertencem a um item existente (para destacar como ativo)
   const ROUTE_GROUP = {
     cardDetail: 'cards',
     personDetail: 'people',
     reports: 'more',
     settings: 'more',
+    installments: 'more',
+    subscriptions: 'more',
+    categories: 'more',
   };
   function isNavActive(item) {
     return state.route === item.key || ROUTE_GROUP[state.route] === item.key;
@@ -31,8 +46,8 @@ const App = (() => {
 
   const ROUTE_TITLES = {
     dashboard: 'Início', transactions: 'Lançamentos', cards: 'Cartões', cardDetail: 'Cartões',
-    installments: 'Parcelas', people: 'Pessoas', personDetail: 'Pessoas', reports: 'Relatórios',
-    settings: 'Configurações', more: 'Mais',
+    installments: 'Parcelas', subscriptions: 'Assinaturas', people: 'Pessoas', personDetail: 'Pessoas',
+    reports: 'Relatórios', settings: 'Configurações', categories: 'Categorias', more: 'Mais',
   };
 
   function navigate(route, params = {}) {
@@ -40,6 +55,7 @@ const App = (() => {
     state.params = params;
     location.hash = `#/${route}${params.id ? '/' + params.id : ''}`;
     renderShell();
+    window.scrollTo(0, 0);
   }
 
   function rerender() { renderShell(); }
@@ -146,11 +162,11 @@ const App = (() => {
     if (shellBuilt) return;
     const root = document.getElementById('app-root');
     root.innerHTML = '';
-    NAV_ITEMS.forEach((item) => { navRefs[item.key] = { links: [] }; });
+    ALL_NAV_KEYS.forEach((key) => { navRefs[key] = { links: [] }; });
 
     const sideNav = el('nav', { class: 'side-nav glass' }, [
       el('div', { class: 'brand' }, 'Planejador'),
-      ...NAV_ITEMS.map((item) => buildNavLink(item)),
+      ...SIDE_NAV_ITEMS.map((item) => buildNavLink(item)),
     ]);
 
     const topbar = el('div', { class: 'topbar glass' }, [buildMonthSwitcher()]);
@@ -164,7 +180,7 @@ const App = (() => {
     ]);
     const viewRoot = el('main', { id: 'view-root' }, [desktopHeader, innerViewEl]);
 
-    const bottomNav = el('nav', { class: 'bottom-nav glass' }, NAV_ITEMS.map((item) => buildNavLink(item)));
+    const bottomNav = el('nav', { class: 'bottom-nav glass' }, BOTTOM_NAV_ITEMS.map((item) => buildNavLink(item)));
 
     const fab = el('button', { class: 'fab', 'aria-label': 'Nova movimentação', onclick: () => Forms.openQuickAddMenu(() => rerender()) }, '+');
 
@@ -177,7 +193,7 @@ const App = (() => {
   }
 
   function updateNavActiveStates() {
-    NAV_ITEMS.forEach((item) => {
+    [...SIDE_NAV_ITEMS, ...BOTTOM_NAV_ITEMS].forEach((item) => {
       const active = isNavActive(item);
       navRefs[item.key].links.forEach(({ a }) => a.classList.toggle('active', active));
     });
@@ -204,10 +220,12 @@ const App = (() => {
       case 'cards': return ViewCards.renderList(container);
       case 'cardDetail': return ViewCards.renderDetail(container, state.params);
       case 'installments': return ViewInstallments.render(container);
+      case 'subscriptions': return ViewSubscriptions.render(container);
       case 'people': return ViewPeople.renderList(container);
       case 'personDetail': return ViewPeople.renderDetail(container, state.params);
       case 'reports': return ViewReports.render(container);
       case 'settings': return ViewSettings.render(container);
+      case 'categories': return ViewCategories.render(container);
       case 'more': return ViewMore.render(container);
       default: return ViewDashboard.render(container);
     }
@@ -247,6 +265,7 @@ const App = (() => {
       state.route = p.route;
       state.params = p.id ? { id: p.id } : {};
       renderShell();
+      window.scrollTo(0, 0);
     });
 
     renderShell();

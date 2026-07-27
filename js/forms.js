@@ -34,6 +34,7 @@ const Forms = (() => {
     const amountInput = el('input', { type: 'number', step: '0.01', min: '0', placeholder: '0,00', value: existing?.amount ?? '' });
     const dateInput = el('input', { type: 'date', value: existing?.date || todayISO() });
     const catSelect = el('select', {}, categoryOptions(existing?.category));
+    attachInlineCategoryCreate(catSelect);
     const personSelect = el('select', {}, personOptions(existing?.person));
     const statusSelect = el('select', {}, [
       el('option', { value: 'planned', selected: (!existing || existing.status === 'planned') ? 'selected' : undefined }, 'Planejado'),
@@ -129,19 +130,22 @@ const Forms = (() => {
   // ---------------- Compra no cartão ----------------
   // pivotMonth: quando a edição parte de uma parcela específica (ex: tela de detalhe de
   // uma parcela), define a partir de qual mês a opção "esta e as próximas" se aplica.
-  function openCardPurchaseForm(existing = null, onSaved, pivotMonth = null) {
+  // pivotInstallmentNumber: o número daquela parcela específica que foi clicada — usado
+  // para pré-preencher "já estou na parcela nº" corretamente (em vez de sempre voltar a 1).
+  function openCardPurchaseForm(existing = null, onSaved, pivotMonth = null, pivotInstallmentNumber = null, defaultCardId = null) {
     if (Store.cache.cards.length === 0) {
       UI.toast('Cadastre um cartão antes de lançar uma compra.', 'error');
-      openCardForm(null, () => openCardPurchaseForm(existing, onSaved, pivotMonth));
+      openCardForm(null, () => openCardPurchaseForm(existing, onSaved, pivotMonth, pivotInstallmentNumber, defaultCardId));
       return;
     }
     const title = existing ? 'Editar compra no cartão' : 'Nova compra no cartão';
-    const cardSelect = el('select', {}, cardOptions(existing?.cardId));
+    const cardSelect = el('select', {}, cardOptions(existing?.cardId || defaultCardId));
     const descInput = el('input', { type: 'text', placeholder: 'Ex: Notebook', value: existing?.description || '' });
     const amountInput = el('input', { type: 'number', step: '0.01', placeholder: '0,00', value: existing?.amount ?? '' });
     const amountHint = el('div', { class: 'hint', style: 'display:none' });
     const dateInput = el('input', { type: 'date', value: existing?.purchaseDate || todayISO() });
     const catSelect = el('select', {}, categoryOptions(existing?.category));
+    attachInlineCategoryCreate(catSelect);
     const noteInput = el('textarea', { placeholder: 'Observação (opcional)' }, existing?.note || '');
 
     // Pessoa responsável: atribuição simples e rápida da compra inteira a uma pessoa,
@@ -158,10 +162,12 @@ const Forms = (() => {
     ]);
 
     // Mês de vencimento da fatura: por padrão, calculado automaticamente pelo dia de
-    // fechamento do cartão. Pode ser definido manualmente quando necessário.
-    let overrideEnabled = !!existing?.invoiceMonthOverride;
+    // fechamento do cartão. Pode ser definido manualmente quando necessário. Quando a
+    // edição parte de uma parcela específica, ancoramos automaticamente nela — assim
+    // editar não desloca a série (e "já estou na parcela" não volta pra 1).
+    let overrideEnabled = !!existing?.invoiceMonthOverride || !!(pivotMonth && pivotInstallmentNumber);
     const todayD = new Date();
-    const ovBase = existing?.invoiceMonthOverride || `${todayD.getFullYear()}-${String(todayD.getMonth() + 1).padStart(2, '0')}`;
+    const ovBase = pivotMonth || existing?.invoiceMonthOverride || `${todayD.getFullYear()}-${String(todayD.getMonth() + 1).padStart(2, '0')}`;
     const [ovY, ovM] = ovBase.split('-').map(Number);
     const monthNamesFull = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
     const ovMonthSelect = el('select', {}, monthNamesFull.map((n, i) => el('option', { value: i + 1, selected: (i + 1) === ovM ? 'selected' : undefined }, n)));
@@ -185,7 +191,8 @@ const Forms = (() => {
     ]);
 
     const installmentsCountInput = el('input', { type: 'number', min: '2', max: '48', value: existing?.installmentsCount || 2, id: 'installments-count', onchange: () => { startInstallmentInput.max = installmentsCountInput.value; } });
-    const startInstallmentInput = el('input', { type: 'number', min: '1', max: existing?.installmentsCount || 2, value: existing?.startInstallmentNumber || 1, id: 'start-installment-number' });
+    const startInstallmentDefault = pivotInstallmentNumber || existing?.startInstallmentNumber || 1;
+    const startInstallmentInput = el('input', { type: 'number', min: '1', max: existing?.installmentsCount || 2, value: startInstallmentDefault, id: 'start-installment-number' });
     const installmentsField = el('div', { style: paymentType === 'installments' ? '' : 'display:none' }, [
       el('div', { class: 'form-row' }, [
         el('div', { class: 'field' }, [el('label', {}, 'Número de parcelas'), installmentsCountInput]),
@@ -196,12 +203,26 @@ const Forms = (() => {
 
     let subEndless = existing ? !existing.subscriptionEndDate : true;
     const subEndDateInput = el('input', { type: 'date', value: existing?.subscriptionEndDate || '', disabled: subEndless ? 'disabled' : undefined });
-    const subEndlessCheck = el('input', { type: 'checkbox', checked: subEndless ? 'checked' : undefined, onchange: (e) => { subEndless = e.target.checked; subEndDateInput.disabled = subEndless; } });
+    const subEndlessCheck = el('input', { type: 'checkbox', checked: subEndless ? 'checked' : undefined, onchange: (e) => {
+      subEndless = e.target.checked;
+      subEndDateInput.disabled = subEndless;
+      subFixedTermFields.style.display = subEndless ? 'none' : '';
+    } });
+    const subInstallmentsCountInput = el('input', { type: 'number', min: '2', max: '120', value: existing?.installmentsCount || '', id: 'sub-installments-count', onchange: () => { subStartInstallmentInput.max = subInstallmentsCountInput.value; } });
+    const subStartInstallmentInput = el('input', { type: 'number', min: '1', max: existing?.installmentsCount || '', value: (pivotInstallmentNumber && existing?.paymentType === 'subscription') ? pivotInstallmentNumber : (existing?.startInstallmentNumber || 1), id: 'sub-start-installment-number' });
+    const subFixedTermFields = el('div', { style: subEndless ? 'display:none' : '' }, [
+      el('div', { class: 'form-row' }, [
+        el('div', { class: 'field' }, [el('label', {}, 'Quantidade de parcelas'), subInstallmentsCountInput]),
+        el('div', { class: 'field' }, [el('label', {}, 'Já estou na parcela nº'), subStartInstallmentInput]),
+      ]),
+      el('div', { class: 'hint', style: 'margin:-6px 0 14px' }, 'Preencha se souber quantas cobranças a assinatura terá ao todo — útil para cadastrar uma assinatura que já está em andamento. Se deixar em branco, o app calcula pelo período entre a data acima e a data final.'),
+    ]);
     const subscriptionField = el('div', { style: paymentType === 'subscription' ? '' : 'display:none' }, [
       el('div', { class: 'field' }, [
         el('label', { class: 'flex items-center gap-8' }, [subEndlessCheck, 'Assinatura indefinida (sem data de término)']),
       ]),
       el('div', { class: 'field' }, [el('label', {}, 'Data final (se aplicável)'), subEndDateInput]),
+      subFixedTermFields,
     ]);
 
     function setPay(mode, e) {
@@ -346,7 +367,29 @@ const Forms = (() => {
         );
       }
       if (paymentType === 'subscription') {
-        payload.subscriptionEndDate = subEndless ? null : (subEndDateInput.value || null);
+        const hasFixedTermCount = !subEndless && subInstallmentsCountInput.value;
+        if (hasFixedTermCount) {
+          const n = parseInt(subInstallmentsCountInput.value, 10) || null;
+          const startAt = n ? Math.min(Math.max(1, parseInt(subStartInstallmentInput.value, 10) || 1), n) : null;
+          payload.installmentsCount = n;
+          payload.startInstallmentNumber = startAt;
+          if (subEndDateInput.value) {
+            payload.subscriptionEndDate = subEndDateInput.value;
+          } else if (n && startAt && dateInput.value) {
+            // usuário preencheu quantidade/parcela mas não a data final — deriva
+            // automaticamente a partir da data informada + parcelas restantes
+            const remainingMonths = n - startAt;
+            const endMonth = Calc.addMonths(Calc.monthRefOf(dateInput.value), remainingMonths);
+            const day = dateInput.value.slice(8, 10);
+            payload.subscriptionEndDate = `${endMonth}-${day}`;
+          } else {
+            payload.subscriptionEndDate = null;
+          }
+        } else {
+          payload.subscriptionEndDate = subEndless ? null : (subEndDateInput.value || null);
+          payload.installmentsCount = null;
+          payload.startInstallmentNumber = null;
+        }
       }
       try {
         if (existing) {
@@ -398,30 +441,6 @@ const Forms = (() => {
       const signedAmount = inst.amount < 0 ? -Math.abs(amount) : Math.abs(amount);
       await Store.updateSingleInstallment({ ...inst, amount: signedAmount, note: noteInput.value.trim() });
       UI.toast('Parcela atualizada.', 'success');
-      modal.close();
-      onSaved && onSaved();
-    });
-  }
-
-  // ---------------- Reembolso ----------------
-  function openReimbursementForm(personId, onSaved) {
-    const person = Store.cache.people.find((p) => p.id === personId);
-    const amountInput = el('input', { type: 'number', step: '0.01', min: '0.01', placeholder: '0,00' });
-    const dateInput = el('input', { type: 'date', value: todayISO() });
-    const noteInput = el('textarea', { placeholder: 'Observação (opcional)' });
-    const body = el('form', { class: 'flex-col' }, [
-      el('div', { class: 'field' }, [el('label', {}, 'Valor devolvido (R$)'), amountInput]),
-      el('div', { class: 'field' }, [el('label', {}, 'Data'), dateInput]),
-      el('div', { class: 'field' }, [el('label', {}, 'Observação'), noteInput]),
-      el('button', { type: 'submit', class: 'btn btn-primary btn-block' }, 'Registrar reembolso'),
-    ]);
-    const modal = UI.openModal({ title: `Reembolso de ${person?.name || ''}`, content: body, size: 'sm' });
-    body.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const amount = parseFloat(amountInput.value);
-      if (!amount || amount <= 0) { UI.toast('Informe um valor válido.', 'error'); return; }
-      await Store.createReimbursement({ personId, amount, date: dateInput.value, note: noteInput.value.trim() });
-      UI.toast('Reembolso registrado.', 'success');
       modal.close();
       onSaved && onSaved();
     });
@@ -510,11 +529,32 @@ const Forms = (() => {
     body.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (!nameInput.value.trim()) { UI.toast('Informe o nome.', 'error'); return; }
-      await Store.upsertCategory({ ...(existing || {}), name: nameInput.value.trim(), icon: iconInput.value || '📦', color: colorInput.value });
+      const obj = { ...(existing || {}), name: nameInput.value.trim(), icon: iconInput.value || '📦', color: colorInput.value };
+      await Store.upsertCategory(obj);
       UI.toast('Categoria salva.', 'success');
       modal.close();
-      onSaved && onSaved();
+      onSaved && onSaved(obj);
     });
+  }
+
+  // Adiciona a opção "+ Criar nova categoria" a um <select> de categoria já existente,
+  // permitindo criar uma categoria sem sair do formulário atual (ex: receita, despesa,
+  // compra no cartão). Ao criar, a nova categoria já fica selecionada automaticamente.
+  function attachInlineCategoryCreate(catSelect) {
+    catSelect.dataset.prevValue = catSelect.value;
+    catSelect.appendChild(el('option', { value: '__new__' }, '+ Criar nova categoria...'));
+    catSelect.addEventListener('change', (e) => {
+      if (e.target.value !== '__new__') return;
+      const previousValue = catSelect.dataset.prevValue || '';
+      catSelect.value = previousValue;
+      openCategoryForm(null, (newCat) => {
+        const opt = el('option', { value: newCat.id, selected: 'selected' }, `${newCat.icon} ${newCat.name}`);
+        catSelect.insertBefore(opt, catSelect.lastElementChild);
+        catSelect.value = newCat.id;
+        catSelect.dataset.prevValue = newCat.id;
+      });
+    });
+    catSelect.addEventListener('change', () => { if (catSelect.value !== '__new__') catSelect.dataset.prevValue = catSelect.value; });
   }
 
   // ---------------- Importar fatura via CSV ----------------
@@ -603,7 +643,7 @@ const Forms = (() => {
           const excluded = !activeFilter(r);
           const isInstallmentRow = r.installmentNumber && r.installmentTotal;
           list.appendChild(el('div', { class: 'list-item glass-soft', style: excluded ? 'opacity:.45' : '' }, [
-            UI.iconChip(r.isPayment ? '💵' : isInstallmentRow ? '📅' : (r.amount < 0 ? '↩️' : '🧾'), r.isPayment ? '#3f6fe0' : (r.amount < 0 ? '#e0393e' : '#3f6fe0')),
+            UI.iconChip(r.isPayment ? '💵' : isInstallmentRow ? '📅' : (r.amount < 0 ? '↩️' : '🧾'), r.isPayment ? '#3f6fe0' : (r.amount < 0 ? '#17a06b' : '#3f6fe0')),
             el('div', { class: 'li-main' }, [
               el('div', { class: 'li-title' }, isInstallmentRow ? r.baseTitle : r.title),
               el('div', { class: 'li-sub' }, [
@@ -684,9 +724,82 @@ const Forms = (() => {
     UI.openModal({ title: 'Nova movimentação', content: body, size: 'sm' });
   }
 
+  // ---------------- Repetir lançamentos ----------------
+  // Lista receitas/despesas de meses anteriores (a mais recente ocorrência de cada
+  // descrição), excluindo o que já existe no mês atual, para o usuário selecionar em
+  // lote o que deseja relançar neste mês.
+  function openRepeatTransactionsForm(type, onSaved) {
+    const month = App.state.currentMonth;
+    const label = type === 'income' ? 'receitas' : 'despesas';
+
+    const currentDescriptions = new Set(
+      Store.cache.transactions.filter((t) => t.type === type && t.monthRef === month).map((t) => t.description.trim().toLowerCase())
+    );
+    const byDesc = new Map();
+    Store.cache.transactions.filter((t) => t.type === type && t.monthRef !== month).forEach((t) => {
+      const key = t.description.trim().toLowerCase();
+      const prev = byDesc.get(key);
+      if (!prev || t.date > prev.date) byDesc.set(key, t);
+    });
+    const candidates = [...byDesc.values()]
+      .filter((t) => !currentDescriptions.has(t.description.trim().toLowerCase()))
+      .sort((a, b) => a.description.localeCompare(b.description, 'pt-BR'));
+
+    if (!candidates.length) {
+      UI.toast(`Nenhuma ${type === 'income' ? 'receita' : 'despesa'} anterior disponível para repetir.`, 'info');
+      return;
+    }
+
+    const checkboxRefs = [];
+    const listWrap = el('div', { class: 'list', style: 'max-height:360px;overflow-y:auto' });
+    candidates.forEach((t) => {
+      const cat = Store.cache.categories.find((c) => c.id === t.category);
+      const cb = el('input', { type: 'checkbox' });
+      checkboxRefs.push({ cb, t });
+      listWrap.appendChild(el('div', { class: 'list-item glass-soft' }, [
+        cb,
+        el('div', { class: 'li-main' }, [
+          el('div', { class: 'li-title' }, t.description),
+          el('div', { class: 'li-sub' }, [cat ? `${cat.icon} ${cat.name}` : 'Sem categoria', ` · última vez em ${Calc.monthLabel(t.monthRef)}`]),
+        ]),
+        el('div', { class: 'li-value' }, fmtMoney(t.amount)),
+      ]));
+    });
+
+    const selectAll = el('input', { type: 'checkbox', onchange: (e) => { checkboxRefs.forEach((r) => { r.cb.checked = e.target.checked; }); } });
+
+    const body = el('div', { class: 'flex-col' }, [
+      el('div', { class: 'text-xs text-muted mb-8' }, `Selecione quais ${label} de meses anteriores você quer repetir em ${Calc.monthLabel(month)}.`),
+      el('div', { class: 'list-item glass-soft', style: 'margin-bottom:8px' }, [selectAll, el('div', { class: 'li-main' }, el('div', { class: 'li-title' }, 'Selecionar todos'))]),
+      listWrap,
+      el('button', {
+        class: 'btn btn-primary btn-block mt-14',
+        onclick: async () => {
+          const selected = checkboxRefs.filter((r) => r.cb.checked).map((r) => r.t);
+          if (!selected.length) { UI.toast('Selecione ao menos um lançamento.', 'error'); return; }
+          const [y, m] = month.split('-').map(Number);
+          const maxDay = new Date(y, m, 0).getDate();
+          for (const t of selected) {
+            const originalDay = parseInt(t.date.slice(8, 10), 10);
+            const useDay = Math.min(originalDay, maxDay);
+            await Store.createTransaction({
+              type, description: t.description, amount: t.amount, date: `${month}-${String(useDay).padStart(2, '0')}`,
+              category: t.category, person: t.person, status: 'planned', note: t.note || '', tags: [],
+              recurrence: { mode: 'none' },
+            });
+          }
+          UI.toast(`${selected.length} lançamento(s) repetido(s) em ${Calc.monthLabel(month)}.`, 'success');
+          modal.close();
+          onSaved && onSaved();
+        },
+      }, 'Repetir selecionados'),
+    ]);
+    const modal = UI.openModal({ title: `Repetir ${label}`, content: body, size: 'md' });
+  }
+
   return {
-    openTransactionForm, openCardPurchaseForm, openSingleInstallmentEditForm, openReimbursementForm,
-    openCardForm, openPersonForm, openCategoryForm, openImportInvoiceForm, openQuickAddMenu,
+    openTransactionForm, openCardPurchaseForm, openSingleInstallmentEditForm,
+    openCardForm, openPersonForm, openCategoryForm, openImportInvoiceForm, openQuickAddMenu, openRepeatTransactionsForm,
   };
 })();
 

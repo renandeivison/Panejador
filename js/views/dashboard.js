@@ -13,14 +13,15 @@ const ViewDashboard = (() => {
       el('div', { class: 'hb-value', style: `color:${summary.projectedBalance >= 0 ? 'var(--green)' : 'var(--red)'}` }, fmtMoney(summary.projectedBalance)),
       el('div', { class: 'hb-row' }, [
         el('div', { class: 'hb-mini' }, ['Receitas', el('b', { class: 'text-green' }, fmtMoney(summary.incomeTotal))]),
-        el('div', { class: 'hb-mini' }, ['Comprometido', el('b', { class: 'text-red' }, fmtMoney(summary.committed))]),
+        el('div', { class: 'hb-mini' }, ['+ A receber', el('b', { class: 'text-amber' }, fmtMoney(summary.receivableThisMonth))]),
+        el('div', { class: 'hb-mini' }, ['− Comprometido', el('b', { class: 'text-red' }, fmtMoney(summary.committed))]),
       ]),
     ]);
     container.appendChild(hero);
 
     const grid = el('div', { class: 'grid grid-4' }, [
-      statCard('💰', 'Receitas previstas', summary.incomeTotal, 'var(--green)', () => App.navigate('transactions', { type: 'income' })),
-      statCard('🧾', 'Despesas previstas', summary.expenseTotal, 'var(--red)', () => App.navigate('transactions', { type: 'expense' })),
+      statCardWithRepeat('💰', 'Receitas previstas', summary.incomeTotal, 'var(--green)', 'income', () => App.navigate('transactions', { type: 'income' })),
+      statCardWithRepeat('🧾', 'Despesas previstas', summary.expenseTotal, 'var(--red)', 'expense', () => App.navigate('transactions', { type: 'expense' })),
       statCard('💳', 'Faturas dos cartões', summary.cardInvoiceTotal, 'var(--blue)', () => App.navigate('installments')),
       statCard('👥', 'A receber neste mês', summary.receivableThisMonth, 'var(--amber)', () => App.navigate('transactions', { type: 'card' })),
     ]);
@@ -109,6 +110,19 @@ const ViewDashboard = (() => {
     return el('div', { class: 'stat-card glass clickable', onclick: onClick }, [
       el('div', { class: 'stat-label' }, label),
       el('div', { class: 'stat-value', style: `color:${color}` }, fmtMoney(value)),
+    ]);
+  }
+
+  function statCardWithRepeat(icon, label, value, color, type, onClick) {
+    return el('div', { class: 'stat-card glass', style: 'position:relative' }, [
+      el('div', { class: 'clickable', style: 'cursor:pointer', onclick: onClick }, [
+        el('div', { class: 'stat-label' }, label),
+        el('div', { class: 'stat-value', style: `color:${color}` }, fmtMoney(value)),
+      ]),
+      el('button', {
+        class: 'btn btn-ghost btn-sm', style: 'margin-top:8px;padding:5px 10px;font-size:11px',
+        onclick: (e) => { e.stopPropagation(); Forms.openRepeatTransactionsForm(type, () => App.rerender()); },
+      }, '↻ Repetir lançamentos'),
     ]);
   }
 

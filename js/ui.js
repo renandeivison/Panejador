@@ -153,13 +153,29 @@ const UI = (() => {
     return el('button', { class: 'tag tag-person', style: `--tag-color:${person.color || '#7b8cde'}`, onclick: onClick }, `🏷 ${person.name}`);
   }
 
+  // Dado o array `splits` de um lançamento de cartão (sempre tem ao menos 1 item):
+  // - 1 item com personId => atribuída inteiramente a essa pessoa: mostra o nome dela.
+  // - 1 item sem personId => 100% própria: não mostra nada.
+  // - 2+ itens => dividida entre múltiplas partes: mostra uma tag genérica "Dividida",
+  //   em vez de destacar arbitrariamente o nome da primeira pessoa da lista.
+  function splitTag(splits, onPersonClick) {
+    if (!splits || splits.length === 0) return null;
+    if (splits.length >= 2) {
+      return el('span', { class: 'tag tag-neutral' }, '🔀 Dividida');
+    }
+    const only = splits[0];
+    if (!only.personId) return null;
+    const person = Store.cache.people.find((p) => p.id === only.personId);
+    return person ? personTag(person, onPersonClick ? (e) => onPersonClick(e, person) : undefined) : null;
+  }
+
   function categoryTag(cat, onClick) {
     if (!cat) return null;
     return el('button', { class: 'tag tag-category', style: `--tag-color:${cat.color || '#8d99ae'}`, onclick: onClick }, `${cat.icon || ''} ${cat.name}`);
   }
 
   return {
-    fmtMoney, fmtDate, fmtDateShort, el, toast, openModal, closeTopModal, confirmDialog, iconChip, iconChipSvg, personTag, categoryTag,
+    fmtMoney, fmtDate, fmtDateShort, el, toast, openModal, closeTopModal, confirmDialog, iconChip, iconChipSvg, personTag, categoryTag, splitTag,
     SORT_OPTIONS_FULL, SORT_OPTIONS_SIMPLE, sortComparator, buildSortControl,
   };
 })();

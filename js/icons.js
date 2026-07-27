@@ -122,6 +122,23 @@ const Icons = {
 		</path>
 	</g>
 </svg>`,
+  // Provisório (estilo compatível) até você enviar o ícone oficial de "Assinaturas".
+  subscriptions: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+	<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+		<path stroke-dasharray="24" stroke-dashoffset="24" d="M3 7c0 -2.21 1.79 -4 4 -4h10c2.21 0 4 1.79 4 4">
+			<animate fill="freeze" attributeName="stroke-dashoffset" dur="0.4s" values="24;0" />
+		</path>
+		<path stroke-dasharray="6" stroke-dashoffset="6" d="M21 3v4h-4">
+			<animate fill="freeze" attributeName="stroke-dashoffset" begin="0.4s" dur="0.2s" to="0" />
+		</path>
+		<path stroke-dasharray="24" stroke-dashoffset="24" d="M21 17c0 2.21 -1.79 4 -4 4h-10c-2.21 0 -4 -1.79 -4 -4">
+			<animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.4s" values="24;0" />
+		</path>
+		<path stroke-dasharray="6" stroke-dashoffset="6" d="M3 21v-4h4">
+			<animate fill="freeze" attributeName="stroke-dashoffset" begin="1s" dur="0.2s" to="0" />
+		</path>
+	</g>
+</svg>`,
 };
 
 window.Icons = Icons;

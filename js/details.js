@@ -73,8 +73,21 @@ const Details = (() => {
     );
 
     const body = el('div', { class: 'flex-col' }, [
-      inst.kind === 'reversal' ? el('span', { class: 'tag tag-reversal' }, 'ESTORNO') : null,
-      el('div', { class: 'money money-lg', style: `color:${inst.amount < 0 ? 'var(--red)' : 'var(--ink-900)'}` }, fmtMoney(inst.amount)),
+      el('div', { class: 'flex items-center gap-8', style: 'flex-wrap:wrap' }, [
+        inst.kind === 'reversal' ? el('span', { class: 'tag tag-reversal' }, 'ESTORNO') : null,
+        el('button', {
+          class: `tag ${inst.checked ? '' : 'tag-neutral'}`,
+          style: inst.checked ? '--tag-color:#17a06b;background:var(--green-soft);color:var(--green);border-color:rgba(23,160,107,0.3)' : '',
+          onclick: async (e) => {
+            e.stopPropagation();
+            await Store.updateSingleInstallment({ ...inst, checked: !inst.checked });
+            UI.closeTopModal();
+            openInstallmentDetail({ ...inst, checked: !inst.checked }, refresh);
+            refresh && refresh();
+          },
+        }, inst.checked ? '✓ Conferido' : '○ Marcar como conferido'),
+      ]),
+      el('div', { class: 'money money-lg', style: `color:${inst.kind === 'reversal' ? 'var(--green)' : 'var(--ink-900)'}` }, fmtMoney(inst.amount)),
       el('div', { class: 'mt-8' }, [
         row('Compra', purchase?.description || '—'),
         row('Cartão', card?.name || '—'),
@@ -92,7 +105,7 @@ const Details = (() => {
         ? el('button', { class: 'btn btn-ghost btn-block mt-8', onclick: () => { UI.closeTopModal(); Forms.openSingleInstallmentEditForm(inst, refresh); } }, `✎ Editar apenas ${Calc.monthLabel(inst.invoiceMonth)}`)
         : null,
       el('div', { class: 'flex gap-8 mt-8' }, [
-        purchase ? el('button', { class: 'btn btn-ghost', style: 'flex:1', onclick: () => { UI.closeTopModal(); Forms.openCardPurchaseForm(purchase, refresh, inst.invoiceMonth); } }, 'Editar compra') : null,
+        purchase ? el('button', { class: 'btn btn-ghost', style: 'flex:1', onclick: () => { UI.closeTopModal(); Forms.openCardPurchaseForm(purchase, refresh, inst.invoiceMonth, inst.number); } }, 'Editar compra') : null,
         purchase ? el('button', { class: 'btn btn-danger', style: 'flex:1', onclick: async () => {
           const scope = await UI.confirmDialog({
             title: 'Excluir',

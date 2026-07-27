@@ -8,32 +8,10 @@ const ViewSettings = (() => {
     container.appendChild(el('div', { class: 'page-title mt-14' }, 'Configurações'));
     container.appendChild(el('div', { class: 'page-subtitle' }, 'Categorias, dados e preferências'));
 
-    // Categorias
-    container.appendChild(el('div', { class: 'flex justify-between items-center' }, [
-      el('div', { class: 'section-title', style: 'margin:0' }, 'Categorias'),
-      el('button', { class: 'btn btn-ghost btn-sm', onclick: () => Forms.openCategoryForm(null, () => render(container)) }, '+ Nova'),
-    ]));
-    const catList = el('div', { class: 'list mt-8' });
-    Store.cache.categories.forEach((c) => {
-      catList.appendChild(el('div', { class: 'list-item glass' }, [
-        UI.iconChip(c.icon, c.color),
-        el('div', { class: 'li-main' }, el('div', { class: 'li-title' }, c.name)),
-        el('div', { class: 'flex gap-8' }, [
-          el('button', { class: 'icon-btn', onclick: (e) => { e.stopPropagation(); Forms.openCategoryForm(c, () => render(container)); } }, '✎'),
-          el('button', { class: 'icon-btn', onclick: async (e) => {
-            e.stopPropagation();
-            const ok = await UI.confirmDialog({ title: 'Excluir categoria', message: `Excluir "${c.name}"?`, choices: [{ label: 'Cancelar', value: null }, { label: 'Excluir', value: true, danger: true }] });
-            if (!ok) return;
-            await Store.deleteCategory(c.id);
-            render(container);
-          } }, '🗑'),
-        ]),
-      ]));
-    });
-    container.appendChild(catList);
-
-    // Cartões e Pessoas — atalhos
-    container.appendChild(el('div', { class: 'grid grid-2 mt-14' }, [
+    // Categorias — atalho para tela própria (evita poluir Configurações)
+    container.appendChild(el('div', { class: 'section-title' }, 'Organização'));
+    container.appendChild(el('div', { class: 'grid grid-3' }, [
+      el('button', { class: 'stat-card glass clickable', onclick: () => App.navigate('categories') }, [el('div', { class: 'stat-label' }, 'Categorias'), el('div', { class: 'stat-value text-blue' }, `${Store.cache.categories.length}`)]),
       el('button', { class: 'stat-card glass clickable', onclick: () => App.navigate('cards') }, [el('div', { class: 'stat-label' }, 'Cartões'), el('div', { class: 'stat-value text-blue' }, `${Store.cache.cards.length}`)]),
       el('button', { class: 'stat-card glass clickable', onclick: () => App.navigate('people') }, [el('div', { class: 'stat-label' }, 'Pessoas'), el('div', { class: 'stat-value text-blue' }, `${Store.cache.people.length}`)]),
     ]));

@@ -5,9 +5,25 @@ const ViewMore = (() => {
   function render(container) {
     container.innerHTML = '';
     container.appendChild(el('div', { class: 'page-title' }, 'Mais'));
-    container.appendChild(el('div', { class: 'page-subtitle' }, 'Relatórios, categorias, backup e preferências'));
+    container.appendChild(el('div', { class: 'page-subtitle' }, 'Parcelas, assinaturas, relatórios e configurações'));
 
     const list = el('div', { class: 'list' }, [
+      el('div', { class: 'list-item glass', onclick: () => App.navigate('installments') }, [
+        UI.iconChipSvg(Icons.installments, '#3f6fe0'),
+        el('div', { class: 'li-main' }, [
+          el('div', { class: 'li-title' }, 'Parcelas'),
+          el('div', { class: 'li-sub' }, 'Compras parceladas futuras, por cartão'),
+        ]),
+        el('span', { class: 'text-muted' }, '›'),
+      ]),
+      el('div', { class: 'list-item glass', onclick: () => App.navigate('subscriptions') }, [
+        UI.iconChipSvg(Icons.subscriptions, '#3f6fe0'),
+        el('div', { class: 'li-main' }, [
+          el('div', { class: 'li-title' }, 'Assinaturas'),
+          el('div', { class: 'li-sub' }, 'Cobranças recorrentes, indefinidas ou por tempo determinado'),
+        ]),
+        el('span', { class: 'text-muted' }, '›'),
+      ]),
       el('div', { class: 'list-item glass', onclick: () => App.navigate('reports') }, [
         UI.iconChipSvg(Icons.reports, '#3f6fe0'),
         el('div', { class: 'li-main' }, [
