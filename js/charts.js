@@ -40,19 +40,20 @@ const Charts = (() => {
     // data: [{ label, value, color }]
     const total = data.reduce((a, d) => a + d.value, 0) || 1;
     const wrap = UI.el('div', { class: 'flex items-center gap-12', style: 'flex-wrap:wrap' });
-    const svg = svgEl('svg', { viewBox: `0 0 ${size} ${size}`, width: size, height: size });
-    const r = size / 2 - 10;
+    const strokeWidth = 22;
+    const svg = svgEl('svg', { viewBox: `0 0 ${size} ${size}`, width: size, height: size, style: `max-width:${size}px;width:100%;height:auto` });
+    const r = size / 2 - strokeWidth / 2 - 4;
     const cx = size / 2, cy = size / 2;
     let angleStart = -90;
 
     if (data.length === 0 || total === 0) {
-      const circle = svgEl('circle', { cx, cy, r, fill: 'none', stroke: '#e5e7eb', 'stroke-width': 22 });
+      const circle = svgEl('circle', { cx, cy, r, fill: 'none', stroke: '#e5e7eb', 'stroke-width': strokeWidth });
       svg.appendChild(circle);
     } else {
       data.forEach((d) => {
         const angle = (d.value / total) * 360;
         const path = describeArc(cx, cy, r, angleStart, angleStart + angle);
-        const p = svgEl('path', { d: path, fill: 'none', stroke: d.color, 'stroke-width': 22, 'stroke-linecap': data.length > 1 ? 'butt' : 'round', style: 'cursor:pointer' });
+        const p = svgEl('path', { d: path, fill: 'none', stroke: d.color, 'stroke-width': strokeWidth, 'stroke-linecap': data.length > 1 ? 'butt' : 'round', style: 'cursor:pointer' });
         if (onSliceClick) p.addEventListener('click', () => onSliceClick(d));
         svg.appendChild(p);
         angleStart += angle;

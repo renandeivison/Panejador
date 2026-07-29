@@ -47,8 +47,7 @@ const ViewInstallments = (() => {
 
   function render(container) {
     container.innerHTML = '';
-    container.appendChild(el('div', { class: 'page-title' }, 'Parcelas futuras'));
-    container.appendChild(el('div', { class: 'page-subtitle' }, 'Compras parceladas a partir do mês atual'));
+    container.appendChild(UI.pageHeader({ title: 'Parcelas futuras', subtitle: 'Compras parceladas a partir do mês atual' }));
 
     const fromMonth = App.state.currentMonth;
     let future = Store.cache.installments.filter((i) => i.invoiceMonth >= fromMonth && i.status !== 'cancelled' && i.kind === 'installment');
@@ -68,16 +67,16 @@ const ViewInstallments = (() => {
       return;
     }
 
-    container.appendChild(el('div', { class: 'filter-bar' }, [
-      UI.buildSortControl(sortKey, (v) => { sortKey = v; render(container); }),
-      el('div', { class: 'segmented', style: 'max-width:220px' }, [
+    container.appendChild(UI.filterSheet([
+      { label: 'Ordenar por', control: UI.buildSortControl(sortKey, (v) => { sortKey = v; render(container); }) },
+      { label: 'Agrupar por', control: el('div', { class: 'segmented' }, [
         el('button', { type: 'button', class: groupBy === 'card' ? 'active' : '', onclick: () => { groupBy = 'card'; render(container); } }, 'Por cartão'),
         el('button', { type: 'button', class: groupBy === 'person' ? 'active' : '', onclick: () => { groupBy = 'person'; render(container); } }, 'Por pessoa'),
-      ]),
-      el('div', { class: 'segmented', style: 'max-width:260px' }, [
+      ]) },
+      { label: 'Período', control: el('div', { class: 'segmented' }, [
         el('button', { type: 'button', class: scope === 'all' ? 'active' : '', onclick: () => { scope = 'all'; render(container); } }, 'Todas as parcelas'),
         el('button', { type: 'button', class: scope === 'nextMonth' ? 'active' : '', onclick: () => { scope = 'nextMonth'; render(container); } }, 'Somente próximo mês'),
-      ]),
+      ]) },
     ]));
 
     if (!future.length) {

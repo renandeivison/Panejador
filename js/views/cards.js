@@ -5,10 +5,10 @@ const ViewCards = (() => {
 
   function renderList(container) {
     container.innerHTML = '';
-    container.appendChild(el('div', { class: 'flex justify-between items-center' }, [
-      el('div', {}, [el('div', { class: 'page-title' }, 'Cartões'), el('div', { class: 'page-subtitle' }, 'Gerencie seus cartões e acompanhe as faturas')]),
-      el('button', { class: 'btn btn-primary btn-sm', onclick: () => Forms.openCardForm(null, () => App.rerender()) }, '+ Cartão'),
-    ]));
+    container.appendChild(UI.pageHeader({
+      title: 'Cartões', subtitle: 'Gerencie seus cartões e acompanhe as faturas',
+      actions: [{ icon: '+', label: 'Novo cartão', onClick: () => Forms.openCardForm(null, () => App.rerender()) }],
+    }));
 
     if (!Store.cache.cards.length) {
       container.appendChild(el('div', { class: 'empty-state glass' }, [
@@ -59,9 +59,14 @@ const ViewCards = (() => {
     const month = App.state.currentMonth;
     const cs = Calc.computeCardSummary(card, Store.cache, month);
 
-    container.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => App.navigate('cards') }, '← Voltar para cartões'));
-    container.appendChild(el('button', { class: 'btn btn-primary btn-sm', style: 'margin-left:8px', onclick: () => Forms.openCardPurchaseForm(null, () => App.rerender(), null, null, card.id) }, '+ Nova compra'));
-    container.appendChild(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-left:8px', onclick: () => Forms.openImportInvoiceForm(card.id, () => App.rerender()) }, '📄 Importar fatura (CSV)'));
+    container.appendChild(UI.pageHeader({
+      title: card.name, subtitle: card.institution || '',
+      onBack: () => App.navigate('cards'),
+      actions: [
+        { icon: '+', label: 'Nova compra', onClick: () => Forms.openCardPurchaseForm(null, () => App.rerender(), null, null, card.id) },
+        { icon: '📄', label: 'Importar fatura (CSV)', onClick: () => Forms.openImportInvoiceForm(card.id, () => App.rerender()) },
+      ],
+    }));
 
     container.appendChild(el('div', {
       class: 'credit-card-visual mt-14',

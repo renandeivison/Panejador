@@ -470,8 +470,34 @@ textarea { resize: vertical; min-height: 64px; }
 .chart-legend .lg-item { display: flex; align-items: center; gap: 5px; }
 .chart-legend .lg-dot { width: 9px; height: 9px; border-radius: 3px; }
 
+/* ---------- Cabeçalho compacto de página ---------- */
+.page-header-row {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 14px;
+}
+.page-header-row .ph-back, .page-header-row .ph-action { flex-shrink: 0; }
+.page-header-row .ph-title-block { flex: 1; min-width: 0; }
+.page-header-row .page-title, .page-header-row .page-subtitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ph-filters-btn { margin-bottom: 14px; }
+
 /* Divider */
 .divider { height: 1px; background: rgba(255,255,255,0.6); margin: 14px 0; }
+
+/* ---------- Recibo / extrato compacto (para print/captura de tela) ---------- */
+.receipt-card { padding: 20px 18px; border-radius: 22px; }
+.receipt-header { text-align: center; margin-bottom: 6px; }
+.receipt-header .rh-name { font-family: var(--font-display); font-weight: 800; font-size: 19px; letter-spacing: -0.01em; }
+.receipt-header .rh-sub { font-size: 11px; color: var(--ink-500); margin-top: 2px; }
+.receipt-divider { border: none; border-top: 1.5px dashed rgba(20,22,31,0.16); margin: 12px 0; }
+.receipt-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 5px 0; font-size: 12.5px; gap: 10px; }
+.receipt-row .rr-desc { flex: 1; min-width: 0; }
+.receipt-row .rr-desc .rr-title { font-weight: 650; color: var(--ink-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.receipt-row .rr-desc .rr-meta { font-size: 10px; color: var(--ink-500); margin-top: 1px; }
+.receipt-row .rr-value { font-family: var(--font-display); font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.receipt-total { display: flex; justify-content: space-between; align-items: baseline; padding-top: 4px; }
+.receipt-total .rt-label { font-weight: 700; font-size: 13px; color: var(--ink-700); }
+.receipt-total .rt-value { font-family: var(--font-display); font-weight: 800; font-size: 20px; color: var(--amber); }
+.receipt-footer { text-align: center; font-size: 10px; color: var(--ink-300); margin-top: 14px; }
 
 /* Scroll */
 ::-webkit-scrollbar { width: 8px; height: 8px; }

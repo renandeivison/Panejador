@@ -5,7 +5,7 @@ const ViewPeople = (() => {
   let viewMode = 'month'; // 'month' | 'total'
 
   function modeToggle(onChange) {
-    return el('div', { class: 'segmented', style: 'max-width:220px' }, [
+    return el('div', { class: 'segmented' }, [
       el('button', { type: 'button', class: viewMode === 'month' ? 'active' : '', onclick: (e) => { viewMode = 'month'; onChange(e); } }, 'Este mês'),
       el('button', { type: 'button', class: viewMode === 'total' ? 'active' : '', onclick: (e) => { viewMode = 'total'; onChange(e); } }, 'Total geral'),
     ]);
@@ -13,10 +13,10 @@ const ViewPeople = (() => {
 
   function renderList(container) {
     container.innerHTML = '';
-    container.appendChild(el('div', { class: 'flex justify-between items-center' }, [
-      el('div', {}, [el('div', { class: 'page-title' }, 'Pessoas'), el('div', { class: 'page-subtitle' }, 'Controle de compras feitas para terceiros')]),
-      el('button', { class: 'btn btn-primary btn-sm', onclick: () => Forms.openPersonForm(null, () => App.rerender()) }, '+ Pessoa'),
-    ]));
+    container.appendChild(UI.pageHeader({
+      title: 'Pessoas', subtitle: 'Controle de compras feitas para terceiros',
+      actions: [{ icon: '+', label: 'Nova pessoa', onClick: () => Forms.openPersonForm(null, () => App.rerender()) }],
+    }));
 
     if (!Store.cache.people.length) {
       container.appendChild(el('div', { class: 'empty-state glass' }, [
@@ -27,10 +27,10 @@ const ViewPeople = (() => {
       return;
     }
 
-    container.appendChild(el('div', { class: 'filter-bar' }, [
-      UI.buildSortControl(sortKey, (v) => { sortKey = v; renderList(container); }, UI.SORT_OPTIONS_SIMPLE),
-      modeToggle(() => renderList(container)),
-    ]));
+    container.appendChild(UI.filterSheet([
+      { label: 'Ordenar por', control: UI.buildSortControl(sortKey, (v) => { sortKey = v; renderList(container); }, UI.SORT_OPTIONS_SIMPLE) },
+      { label: 'Período', control: modeToggle(() => renderList(container)) },
+    ], { title: 'Filtros e ordenação' }));
 
     const month = App.state.currentMonth;
     const list = el('div', { class: 'list' });
@@ -60,27 +60,29 @@ const ViewPeople = (() => {
     const ps = Calc.computePersonSummary(person.id, Store.cache, month);
     const value = viewMode === 'month' ? ps.monthDue : ps.totalDue;
 
-    container.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => App.navigate('people') }, '← Voltar para pessoas'));
+    container.appendChild(UI.pageHeader({
+      title: person.name, subtitle: 'Detalhe da pessoa',
+      onBack: () => App.navigate('people'),
+      actions: [
+        { icon: '✎', label: 'Editar pessoa', onClick: () => Forms.openPersonForm(person, () => App.rerender()) },
+        { icon: '🗑', label: 'Excluir pessoa', onClick: async () => {
+          const ok = await UI.confirmDialog({ title: 'Excluir pessoa', message: `Excluir "${person.name}"? O vínculo em compras já feitas será mantido, mas a pessoa não aparecerá mais na lista.`, choices: [{ label: 'Cancelar', value: null }, { label: 'Excluir', value: true, danger: true }] });
+          if (!ok) return;
+          await Store.deletePerson(person.id);
+          UI.toast('Pessoa excluída.', 'success');
+          App.navigate('people');
+        } },
+      ],
+    }));
 
-    container.appendChild(el('div', { class: 'hero-balance glass-strong mt-14' }, [
-      el('div', { class: 'flex justify-between items-center' }, [
-        el('div', { class: 'hb-month' }, person.name.toUpperCase()),
-        el('div', { class: 'flex gap-8' }, [
-          el('button', { class: 'icon-btn', onclick: () => Forms.openPersonForm(person, () => App.rerender()) }, '✎'),
-          el('button', { class: 'icon-btn', onclick: async () => {
-            const ok = await UI.confirmDialog({ title: 'Excluir pessoa', message: `Excluir "${person.name}"? O vínculo em compras já feitas será mantido, mas a pessoa não aparecerá mais na lista.`, choices: [{ label: 'Cancelar', value: null }, { label: 'Excluir', value: true, danger: true }] });
-            if (!ok) return;
-            await Store.deletePerson(person.id);
-            UI.toast('Pessoa excluída.', 'success');
-            App.navigate('people');
-          } }, '🗑'),
-        ]),
-      ]),
+    container.appendChild(el('div', { class: 'hero-balance glass-strong' }, [
       el('div', { class: 'hb-label' }, viewMode === 'month' ? `Devido em ${Calc.monthLabel(month)}` : 'Devido no total'),
       el('div', { class: 'hb-value', style: `color:${value > 0 ? 'var(--amber)' : 'var(--ink-500)'}` }, fmtMoney(value)),
     ]));
 
     container.appendChild(modeToggle(() => renderDetail(container, params)));
+
+    container.appendChild(el('button', { class: 'btn btn-ghost btn-block mt-8', onclick: () => App.navigate('personStatement', { id: person.id }) }, '🧾 Ver recibo completo (todas as compras, todos os cartões)'));
 
     container.appendChild(el('div', { class: 'section-title' }, 'Compras vinculadas'));
     const list = el('div', { class: 'list' });
@@ -103,6 +105,53 @@ const ViewPeople = (() => {
     container.appendChild(list);
   }
 
-  return { renderList, renderDetail };
+  // Tela compacta, no estilo de recibo, com TODAS as movimentações da pessoa em
+  // todos os cartões e todos os meses — pensada para tirar print/captura de tela.
+  function renderStatement(container, params) {
+    container.innerHTML = '';
+    const person = Store.cache.people.find((p) => p.id === params.id);
+    if (!person) { container.appendChild(el('div', { class: 'empty-state glass' }, 'Pessoa não encontrada.')); return; }
+
+    container.appendChild(UI.pageHeader({ title: 'Recibo', subtitle: person.name, onBack: () => App.navigate('personDetail', { id: person.id }) }));
+
+    const ps = Calc.computePersonSummary(person.id, Store.cache);
+    const rows = ps.relatedInstallments.slice().sort((a, b) => a.inst.invoiceMonth > b.inst.invoiceMonth ? 1 : (a.inst.invoiceMonth < b.inst.invoiceMonth ? -1 : 0));
+
+    const card = el('div', { class: 'glass receipt-card' }, [
+      el('div', { class: 'receipt-header' }, [
+        el('div', { class: 'rh-name' }, person.name),
+        el('div', { class: 'rh-sub' }, `Extrato completo · todos os cartões e meses`),
+      ]),
+      el('hr', { class: 'receipt-divider' }),
+    ]);
+
+    if (!rows.length) {
+      card.appendChild(el('div', { class: 'empty-state', style: 'padding:20px 0' }, 'Nenhuma compra vinculada a esta pessoa.'));
+    } else {
+      rows.forEach(({ inst, amount }) => {
+        const purchase = Store.cache.purchases.find((p) => p.id === inst.purchaseId);
+        const cardObj = Store.cache.cards.find((c) => c.id === inst.cardId);
+        const parcelaTxt = inst.totalInstallments ? `${String(inst.number).padStart(2, '0')}/${String(inst.totalInstallments).padStart(2, '0')}` : null;
+        card.appendChild(el('div', { class: 'receipt-row' }, [
+          el('div', { class: 'rr-desc' }, [
+            el('div', { class: 'rr-title' }, purchase?.description || '—'),
+            el('div', { class: 'rr-meta' }, [cardObj?.name || '', parcelaTxt ? ` · ${parcelaTxt}` : '', ` · ${Calc.monthLabel(inst.invoiceMonth)}`].join('')),
+          ]),
+          el('div', { class: 'rr-value' }, fmtMoney(amount)),
+        ]));
+      });
+    }
+
+    card.appendChild(el('hr', { class: 'receipt-divider' }));
+    card.appendChild(el('div', { class: 'receipt-total' }, [
+      el('span', { class: 'rt-label' }, 'Total devido'),
+      el('span', { class: 'rt-value' }, fmtMoney(ps.totalDue)),
+    ]));
+    card.appendChild(el('div', { class: 'receipt-footer' }, `Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`));
+
+    container.appendChild(card);
+  }
+
+  return { renderList, renderDetail, renderStatement };
 })();
 window.ViewPeople = ViewPeople;

@@ -26,6 +26,16 @@ const Calc = (() => {
     return new Date(year, month1to12, 0).getDate();
   }
 
+  // Aplica o dia-do-mês da data âncora a outro mês (com clamp para meses mais curtos).
+  // Evita usar um dia "1" artificial nas parcelas que não são a âncora — cada parcela
+  // mostra uma data coerente (ex: compra no dia 12 -> todas as parcelas no dia 12).
+  function shiftDateToMonth(anchorDateStr, targetMonth) {
+    const day = parseInt(anchorDateStr.slice(8, 10), 10) || 1;
+    const [y, m] = targetMonth.split('-').map(Number);
+    const clampedDay = Math.min(day, daysInMonth(y, m));
+    return `${targetMonth}-${pad2(clampedDay)}`;
+  }
+
   function monthLabel(monthRef) {
     const [y, m] = monthRef.split('-').map(Number);
     const names = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -197,7 +207,7 @@ const Calc = (() => {
           number,
           totalInstallments: n,
           amount: amounts[i],
-          purchaseDate: number === startAt ? purchase.purchaseDate : `${invoiceMonth}-01`,
+          purchaseDate: number === startAt ? purchase.purchaseDate : shiftDateToMonth(purchase.purchaseDate, invoiceMonth),
           invoiceMonth: inv.invoiceMonth,
           invoiceDueDate: inv.dueDate,
           kind: 'installment',
@@ -226,7 +236,7 @@ const Calc = (() => {
             number,
             totalInstallments: n,
             amount: total,
-            purchaseDate: number === startAt ? purchase.purchaseDate : `${invoiceMonth}-01`,
+            purchaseDate: number === startAt ? purchase.purchaseDate : shiftDateToMonth(purchase.purchaseDate, invoiceMonth),
             invoiceMonth: inv.invoiceMonth,
             invoiceDueDate: inv.dueDate,
             kind: 'subscription',
@@ -404,7 +414,7 @@ const Calc = (() => {
   }
 
   return {
-    pad2, monthRefOf, addMonths, monthLabel, currentMonthRef, round2,
+    pad2, monthRefOf, addMonths, monthLabel, currentMonthRef, round2, shiftDateToMonth,
     invoiceForPurchase, invoiceDetailsForMonth,
     distributeProportional, splitsForInstallment,
     generateInstallments,

@@ -190,14 +190,41 @@ const Forms = (() => {
       el('button', { type: 'button', class: paymentType === 'subscription' ? 'active' : '', onclick: (e) => setPay('subscription', e) }, 'Assinatura'),
     ]);
 
-    const installmentsCountInput = el('input', { type: 'number', min: '2', max: '48', value: existing?.installmentsCount || 2, id: 'installments-count', onchange: () => { startInstallmentInput.max = installmentsCountInput.value; } });
+    const installmentsCountInput = el('input', { type: 'number', min: '2', max: '48', value: existing?.installmentsCount || 2, id: 'installments-count', onchange: () => { startInstallmentInput.max = installmentsCountInput.value; updateInstallmentAmountHint(); } });
     const startInstallmentDefault = pivotInstallmentNumber || existing?.startInstallmentNumber || 1;
     const startInstallmentInput = el('input', { type: 'number', min: '1', max: existing?.installmentsCount || 2, value: startInstallmentDefault, id: 'start-installment-number' });
+
+    // O valor digitado no campo principal pode representar o total da compra (padrão,
+    // como o valor já é armazenado) ou o valor de cada parcela individualmente — útil
+    // quando você só sabe quanto paga por mês, não o total.
+    let installmentAmountMode = 'total'; // 'total' | 'perInstallment'
+    const installmentAmountHint = el('div', { class: 'hint', style: 'margin:-6px 0 10px' });
+    const installmentAmountModeSeg = el('div', { class: 'segmented' }, [
+      el('button', { type: 'button', class: 'active', onclick: (e) => setInstallmentAmountMode('total', e) }, 'Valor total da compra'),
+      el('button', { type: 'button', class: '', onclick: (e) => setInstallmentAmountMode('perInstallment', e) }, 'Valor de cada parcela'),
+    ]);
+    function setInstallmentAmountMode(mode, e) {
+      installmentAmountMode = mode;
+      installmentAmountModeSeg.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
+      e.target.classList.add('active');
+      updateInstallmentAmountHint();
+    }
+    function updateInstallmentAmountHint() {
+      const n = Math.max(1, parseInt(installmentsCountInput.value, 10) || 1);
+      const amt = parseFloat(amountInput.value) || 0;
+      installmentAmountHint.textContent = installmentAmountMode === 'perInstallment'
+        ? `Total da compra: ${fmtMoney(Calc.round2(amt * n))}`
+        : `Cada parcela: ${fmtMoney(Calc.round2(amt / n))}`;
+    }
+    amountInput.addEventListener('input', updateInstallmentAmountHint);
+
     const installmentsField = el('div', { style: paymentType === 'installments' ? '' : 'display:none' }, [
       el('div', { class: 'form-row' }, [
         el('div', { class: 'field' }, [el('label', {}, 'Número de parcelas'), installmentsCountInput]),
         el('div', { class: 'field' }, [el('label', {}, 'Já estou na parcela nº'), startInstallmentInput]),
       ]),
+      el('div', { class: 'field' }, [el('label', {}, 'O valor acima é'), installmentAmountModeSeg]),
+      installmentAmountHint,
       el('div', { class: 'hint', style: 'margin:-6px 0 14px' }, 'Lançando uma compra atrasada? Informe em qual parcela você já está — a data acima deve ser a data de vencimento desta parcela específica.'),
     ]);
 
@@ -326,10 +353,14 @@ const Forms = (() => {
 
     body.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const amount = parseFloat(amountInput.value);
+      let amount = parseFloat(amountInput.value);
       if (!descInput.value.trim() || !amount || !dateInput.value || !cardSelect.value) {
         UI.toast('Preencha cartão, descrição, valor e data.', 'error');
         return;
+      }
+      if (paymentType === 'installments' && installmentAmountMode === 'perInstallment') {
+        const n = Math.max(1, parseInt(installmentsCountInput.value, 10) || 1);
+        amount = Calc.round2(amount * n);
       }
       const isReversal = amount < 0;
       let splits = [];

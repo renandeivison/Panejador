@@ -4,12 +4,11 @@ const ViewCategories = (() => {
 
   function render(container) {
     container.innerHTML = '';
-    container.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => App.navigate('settings') }, '← Voltar para Configurações'));
-
-    container.appendChild(el('div', { class: 'flex justify-between items-center mt-14' }, [
-      el('div', {}, [el('div', { class: 'page-title' }, 'Categorias'), el('div', { class: 'page-subtitle' }, `${Store.cache.categories.length} categoria(s) cadastrada(s)`)]),
-      el('button', { class: 'btn btn-primary btn-sm', onclick: () => Forms.openCategoryForm(null, () => render(container)) }, '+ Nova'),
-    ]));
+    container.appendChild(UI.pageHeader({
+      title: 'Categorias', subtitle: `${Store.cache.categories.length} categoria(s) cadastrada(s)`,
+      onBack: () => App.navigate('settings'),
+      actions: [{ icon: '+', label: 'Nova categoria', onClick: () => Forms.openCategoryForm(null, () => render(container)) }],
+    }));
 
     if (!Store.cache.categories.length) {
       container.appendChild(el('div', { class: 'empty-state glass' }, [

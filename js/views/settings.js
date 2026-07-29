@@ -4,9 +4,7 @@ const ViewSettings = (() => {
 
   function render(container) {
     container.innerHTML = '';
-    container.appendChild(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => App.navigate('more') }, '← Voltar para Mais'));
-    container.appendChild(el('div', { class: 'page-title mt-14' }, 'Configurações'));
-    container.appendChild(el('div', { class: 'page-subtitle' }, 'Categorias, dados e preferências'));
+    container.appendChild(UI.pageHeader({ title: 'Configurações', subtitle: 'Categorias, dados e preferências', onBack: () => App.navigate('more') }));
 
     // Categorias — atalho para tela própria (evita poluir Configurações)
     container.appendChild(el('div', { class: 'section-title' }, 'Organização'));

@@ -148,6 +148,51 @@ const UI = (() => {
     return el('span', { class: 'icon-chip icon-chip-svg', style: `background:${color}22;color:${color}`, html: svgHtml });
   }
 
+  // ---------- Cabeçalho compacto de página ----------
+  // Substitui o padrão antigo de "botão Voltar" + botões de ação empilhados por uma
+  // única linha: ‹ voltar | título (+ subtítulo) | ação(ões) à direita.
+  function pageHeader({ title, subtitle, onBack, actions = [] }) {
+    const left = onBack ? el('button', { class: 'icon-btn ph-back', onclick: onBack, 'aria-label': 'Voltar' }, '‹') : null;
+    const titleBlock = el('div', { class: 'ph-title-block' }, [
+      el('div', { class: 'page-title', style: 'margin-bottom:0' }, title),
+      subtitle ? el('div', { class: 'page-subtitle', style: 'margin-bottom:0' }, subtitle) : null,
+    ]);
+    let actionsEl = null;
+    if (actions.length === 1) {
+      const a = actions[0];
+      actionsEl = el('button', { class: 'icon-btn ph-action', onclick: a.onClick, 'aria-label': a.label, title: a.label }, a.icon);
+    } else if (actions.length > 1) {
+      actionsEl = el('button', { class: 'icon-btn ph-action', onclick: () => openActionMenu(actions), 'aria-label': 'Mais ações' }, '⋯');
+    }
+    return el('div', { class: 'page-header-row' }, [left, titleBlock, actionsEl].filter(Boolean));
+  }
+
+  function openActionMenu(actions) {
+    const body = el('div', { class: 'flex-col gap-8' }, actions.map((a) =>
+      el('button', { class: 'list-item glass-soft', onclick: () => { closeTopModal(); a.onClick(); } }, [
+        iconChip(a.icon, '#3f6fe0'),
+        el('div', { class: 'li-main' }, el('div', { class: 'li-title' }, a.label)),
+      ])
+    ));
+    openModal({ title: 'Ações', content: body, size: 'sm' });
+  }
+
+  // ---------- Folha de filtros ----------
+  // Agrupa vários controles de filtro/ordenação/agrupamento (que antes ficavam
+  // empilhados na tela) atrás de um único botão, abertos numa folha modal.
+  function filterSheet(items, opts = {}) {
+    const btn = el('button', { class: 'btn btn-ghost btn-sm ph-filters-btn' }, opts.label || '⚙ Filtros e ordenação');
+    btn.addEventListener('click', () => {
+      const body = el('div', { class: 'flex-col' }, items.map((it) =>
+        it.label
+          ? el('div', { class: 'field' }, [el('label', {}, it.label), it.control])
+          : el('div', { class: 'field' }, it.control)
+      ));
+      openModal({ title: opts.title || 'Filtros', content: body, size: 'sm' });
+    });
+    return btn;
+  }
+
   function personTag(person, onClick) {
     if (!person) return null;
     return el('button', { class: 'tag tag-person', style: `--tag-color:${person.color || '#7b8cde'}`, onclick: onClick }, `🏷 ${person.name}`);
@@ -176,7 +221,7 @@ const UI = (() => {
 
   return {
     fmtMoney, fmtDate, fmtDateShort, el, toast, openModal, closeTopModal, confirmDialog, iconChip, iconChipSvg, personTag, categoryTag, splitTag,
-    SORT_OPTIONS_FULL, SORT_OPTIONS_SIMPLE, sortComparator, buildSortControl,
+    SORT_OPTIONS_FULL, SORT_OPTIONS_SIMPLE, sortComparator, buildSortControl, pageHeader, filterSheet,
   };
 })();
 

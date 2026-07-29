@@ -277,7 +277,7 @@ const Store = (() => {
           newInstallments.push({
             id: DB.uid(), purchaseId: purchase.id, cardId, number: n,
             totalInstallments: row.installmentTotal, amount: row.amount,
-            purchaseDate: n === row.installmentNumber ? row.date : monthN + '-01',
+            purchaseDate: n === row.installmentNumber ? row.date : Calc.shiftDateToMonth(row.date, monthN),
             invoiceMonth: invN.invoiceMonth, invoiceDueDate: invN.dueDate, kind: 'installment',
             splits: [{ personId: null, amount: row.amount }], status: 'planned',
           });

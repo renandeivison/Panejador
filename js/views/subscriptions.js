@@ -5,8 +5,7 @@ const ViewSubscriptions = (() => {
 
   function render(container) {
     container.innerHTML = '';
-    container.appendChild(el('div', { class: 'page-title' }, 'Assinaturas'));
-    container.appendChild(el('div', { class: 'page-subtitle' }, 'Cobranças recorrentes por cartão — indefinidas ou por tempo determinado'));
+    container.appendChild(UI.pageHeader({ title: 'Assinaturas', subtitle: 'Cobranças recorrentes por cartão — indefinidas ou por tempo determinado' }));
 
     const month = App.state.currentMonth;
     // considera assinaturas ativas: qualquer lançamento de assinatura neste mês ou futuro
@@ -25,7 +24,7 @@ const ViewSubscriptions = (() => {
       return;
     }
 
-    container.appendChild(el('div', { class: 'filter-bar' }, [UI.buildSortControl(sortKey, (v) => { sortKey = v; render(container); })]));
+    container.appendChild(UI.filterSheet([{ label: 'Ordenar por', control: UI.buildSortControl(sortKey, (v) => { sortKey = v; render(container); }) }]));
 
     // agrupa por compra (purchaseId) — cada assinatura é uma "linha", mostrando a cobrança deste mês (se houver)
     const purchaseIds = [...new Set(activeSubs.map((i) => i.purchaseId))];

@@ -9,8 +9,7 @@ const ViewTransactions = (() => {
     container.innerHTML = '';
     const month = App.state.currentMonth;
 
-    container.appendChild(el('div', { class: 'page-title' }, 'Movimentações'));
-    container.appendChild(el('div', { class: 'page-subtitle' }, `Receitas, despesas e compras no cartão de ${Calc.monthLabel(month)}`));
+    container.appendChild(UI.pageHeader({ title: 'Movimentações', subtitle: `Receitas, despesas e compras no cartão de ${Calc.monthLabel(month)}` }));
 
     // filtros
     const typeSelect = el('select', { onchange: (e) => { filters.type = e.target.value; renderList(); } },
@@ -23,13 +22,19 @@ const ViewTransactions = (() => {
     const searchInput = el('input', { type: 'text', placeholder: 'Buscar por descrição...', value: filters.q, oninput: (e) => { filters.q = e.target.value; renderList(); } });
     const sortSelect = UI.buildSortControl(sortKey, (v) => { sortKey = v; renderList(); });
 
-    container.appendChild(el('div', { class: 'filter-bar' }, [typeSelect, catSelect, personSelect, searchInput, sortSelect]));
+    container.appendChild(el('div', { class: 'field' }, searchInput));
+    container.appendChild(UI.filterSheet([
+      { label: 'Tipo', control: typeSelect },
+      { label: 'Categoria', control: catSelect },
+      { label: 'Pessoa', control: personSelect },
+      { label: 'Ordenar por', control: sortSelect },
+    ]));
 
     if (filters.type === 'income' || filters.type === 'expense') {
       container.appendChild(el('button', {
         class: 'btn btn-ghost btn-sm mb-8',
         onclick: () => Forms.openRepeatTransactionsForm(filters.type, () => App.rerender()),
-      }, '🔁 Repetir lançamentos'));
+      }, '↻ Repetir lançamentos'));
     }
 
     const listWrap = el('div', { class: 'list' });

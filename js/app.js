@@ -34,6 +34,7 @@ const App = (() => {
   const ROUTE_GROUP = {
     cardDetail: 'cards',
     personDetail: 'people',
+    personStatement: 'people',
     reports: 'more',
     settings: 'more',
     installments: 'more',
@@ -46,7 +47,7 @@ const App = (() => {
 
   const ROUTE_TITLES = {
     dashboard: 'Início', transactions: 'Lançamentos', cards: 'Cartões', cardDetail: 'Cartões',
-    installments: 'Parcelas', subscriptions: 'Assinaturas', people: 'Pessoas', personDetail: 'Pessoas',
+    installments: 'Parcelas', subscriptions: 'Assinaturas', people: 'Pessoas', personDetail: 'Pessoas', personStatement: 'Recibo',
     reports: 'Relatórios', settings: 'Configurações', categories: 'Categorias', more: 'Mais',
   };
 
@@ -223,6 +224,7 @@ const App = (() => {
       case 'subscriptions': return ViewSubscriptions.render(container);
       case 'people': return ViewPeople.renderList(container);
       case 'personDetail': return ViewPeople.renderDetail(container, state.params);
+      case 'personStatement': return ViewPeople.renderStatement(container, state.params);
       case 'reports': return ViewReports.render(container);
       case 'settings': return ViewSettings.render(container);
       case 'categories': return ViewCategories.render(container);

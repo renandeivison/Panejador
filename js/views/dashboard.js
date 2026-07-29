@@ -20,8 +20,8 @@ const ViewDashboard = (() => {
     container.appendChild(hero);
 
     const grid = el('div', { class: 'grid grid-4' }, [
-      statCardWithRepeat('💰', 'Receitas previstas', summary.incomeTotal, 'var(--green)', 'income', () => App.navigate('transactions', { type: 'income' })),
-      statCardWithRepeat('🧾', 'Despesas previstas', summary.expenseTotal, 'var(--red)', 'expense', () => App.navigate('transactions', { type: 'expense' })),
+      statCard('💰', 'Receitas previstas', summary.incomeTotal, 'var(--green)', () => App.navigate('transactions', { type: 'income' })),
+      statCard('🧾', 'Despesas previstas', summary.expenseTotal, 'var(--red)', () => App.navigate('transactions', { type: 'expense' })),
       statCard('💳', 'Faturas dos cartões', summary.cardInvoiceTotal, 'var(--blue)', () => App.navigate('installments')),
       statCard('👥', 'A receber neste mês', summary.receivableThisMonth, 'var(--amber)', () => App.navigate('transactions', { type: 'card' })),
     ]);
@@ -77,52 +77,12 @@ const ViewDashboard = (() => {
       if (!list.children.length) list.appendChild(emptyRow('Nenhum valor de terceiros neste mês.'));
       container.appendChild(list);
     }
-
-    // Próximos compromissos (despesas + parcelas do mês, ordenado por data)
-    container.appendChild(el('div', { class: 'section-title' }, 'Próximos compromissos'));
-    const commitments = [
-      ...summary.expenseTxs.map((t) => ({ date: t.date, title: t.description, value: t.amount, kind: 'expense', ref: t })),
-      ...summary.cardInstallments.filter((i) => i.amount > 0).map((i) => {
-        const purchase = Store.cache.purchases.find((p) => p.id === i.purchaseId);
-        return { date: i.invoiceDueDate, title: purchase?.description || 'Compra no cartão', value: i.amount, kind: 'card', ref: i };
-      }),
-    ].sort((a, b) => (a.date > b.date ? 1 : -1)).slice(0, 8);
-
-    const commitList = el('div', { class: 'list' });
-    commitments.forEach((c) => {
-      commitList.appendChild(el('div', {
-        class: 'list-item glass',
-        onclick: () => c.kind === 'expense' ? Details.openTransactionDetail(c.ref, () => App.rerender()) : Details.openInstallmentDetail(c.ref, () => App.rerender()),
-      }, [
-        UI.iconChip(c.kind === 'expense' ? '🧾' : '💳', c.kind === 'expense' ? '#e0393e' : '#3f6fe0'),
-        el('div', { class: 'li-main' }, [
-          el('div', { class: 'li-title' }, c.title),
-          el('div', { class: 'li-sub' }, UI.fmtDate(c.date)),
-        ]),
-        el('div', { class: 'li-value' }, fmtMoney(c.value)),
-      ]));
-    });
-    if (!commitList.children.length) commitList.appendChild(emptyRow('Nenhum compromisso planejado para este mês.'));
-    container.appendChild(commitList);
   }
 
   function statCard(icon, label, value, color, onClick) {
     return el('div', { class: 'stat-card glass clickable', onclick: onClick }, [
       el('div', { class: 'stat-label' }, label),
       el('div', { class: 'stat-value', style: `color:${color}` }, fmtMoney(value)),
-    ]);
-  }
-
-  function statCardWithRepeat(icon, label, value, color, type, onClick) {
-    return el('div', { class: 'stat-card glass', style: 'position:relative' }, [
-      el('div', { class: 'clickable', style: 'cursor:pointer', onclick: onClick }, [
-        el('div', { class: 'stat-label' }, label),
-        el('div', { class: 'stat-value', style: `color:${color}` }, fmtMoney(value)),
-      ]),
-      el('button', {
-        class: 'btn btn-ghost btn-sm', style: 'margin-top:8px;padding:5px 10px;font-size:11px',
-        onclick: (e) => { e.stopPropagation(); Forms.openRepeatTransactionsForm(type, () => App.rerender()); },
-      }, '↻ Repetir lançamentos'),
     ]);
   }
 
