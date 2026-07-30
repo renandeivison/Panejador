@@ -3,7 +3,7 @@ const ViewInstallments = (() => {
   const { el, fmtMoney } = UI;
   let sortKey = 'date';
   let groupBy = 'card'; // 'card' | 'person'
-  let scope = 'all'; // 'all' | 'nextMonth'
+  let scope = 'all'; // 'all' | 'thisMonth'
 
   function buildRow(i) {
     const purchase = Store.cache.purchases.find((p) => p.id === i.purchaseId);
@@ -51,14 +51,13 @@ const ViewInstallments = (() => {
 
     const fromMonth = App.state.currentMonth;
     let future = Store.cache.installments.filter((i) => i.invoiceMonth >= fromMonth && i.status !== 'cancelled' && i.kind === 'installment');
-    if (scope === 'nextMonth') {
-      const nextMonth = Calc.addMonths(fromMonth, 1);
-      future = future.filter((i) => i.invoiceMonth === nextMonth);
+    if (scope === 'thisMonth') {
+      future = future.filter((i) => i.invoiceMonth === fromMonth);
     }
     const totalFuture = Calc.round2(future.reduce((a, i) => a + i.amount, 0));
 
     container.appendChild(el('div', { class: 'hero-balance glass-strong' }, [
-      el('div', { class: 'hb-label' }, scope === 'nextMonth' ? `Total de parcelas em ${Calc.monthLabel(Calc.addMonths(fromMonth, 1))}` : 'Total de parcelas futuras em todos os cartões'),
+      el('div', { class: 'hb-label' }, scope === 'thisMonth' ? `Total de parcelas em ${Calc.monthLabel(fromMonth)}` : 'Total de parcelas futuras em todos os cartões'),
       el('div', { class: 'hb-value text-blue' }, fmtMoney(totalFuture)),
     ]));
 
@@ -73,9 +72,9 @@ const ViewInstallments = (() => {
         el('button', { type: 'button', class: groupBy === 'card' ? 'active' : '', onclick: () => { groupBy = 'card'; render(container); } }, 'Por cartão'),
         el('button', { type: 'button', class: groupBy === 'person' ? 'active' : '', onclick: () => { groupBy = 'person'; render(container); } }, 'Por pessoa'),
       ]) },
-      { label: 'Período', control: el('div', { class: 'segmented' }, [
+      { label: 'Período', control: el('div', { class: 'segmented segmented-sm' }, [
         el('button', { type: 'button', class: scope === 'all' ? 'active' : '', onclick: () => { scope = 'all'; render(container); } }, 'Todas as parcelas'),
-        el('button', { type: 'button', class: scope === 'nextMonth' ? 'active' : '', onclick: () => { scope = 'nextMonth'; render(container); } }, 'Somente próximo mês'),
+        el('button', { type: 'button', class: scope === 'thisMonth' ? 'active' : '', onclick: () => { scope = 'thisMonth'; render(container); } }, 'Este mês'),
       ]) },
     ]));
 

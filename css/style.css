@@ -381,6 +381,8 @@ textarea { resize: vertical; min-height: 64px; }
 .form-row { display: flex; gap: 10px; }
 .form-row > .field { flex: 1; }
 .segmented { display: flex; background: rgba(255,255,255,0.4); border-radius: 14px; padding: 4px; gap: 4px; }
+.segmented-sm { padding: 3px; border-radius: 11px; }
+.segmented-sm button { padding: 6px 4px; font-size: 11px; border-radius: 8px; }
 .segmented button {
   flex: 1; border: none; background: transparent; padding: 9px 6px; border-radius: 10px;
   font-size: 12.5px; font-weight: 600; color: var(--ink-500); cursor: pointer; transition: all .2s ease;

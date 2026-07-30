@@ -82,7 +82,7 @@ const ViewPeople = (() => {
 
     container.appendChild(modeToggle(() => renderDetail(container, params)));
 
-    container.appendChild(el('button', { class: 'btn btn-ghost btn-block mt-8', onclick: () => App.navigate('personStatement', { id: person.id }) }, '🧾 Ver recibo completo (todas as compras, todos os cartões)'));
+    container.appendChild(el('button', { class: 'btn btn-ghost btn-block mt-8', onclick: () => App.navigate('personStatement', { id: person.id }) }, `🧾 Ver recibo de ${Calc.monthLabel(month)} (todos os cartões)`));
 
     container.appendChild(el('div', { class: 'section-title' }, 'Compras vinculadas'));
     const list = el('div', { class: 'list' });
@@ -111,22 +111,23 @@ const ViewPeople = (() => {
     container.innerHTML = '';
     const person = Store.cache.people.find((p) => p.id === params.id);
     if (!person) { container.appendChild(el('div', { class: 'empty-state glass' }, 'Pessoa não encontrada.')); return; }
+    const month = App.state.currentMonth;
 
-    container.appendChild(UI.pageHeader({ title: 'Recibo', subtitle: person.name, onBack: () => App.navigate('personDetail', { id: person.id }) }));
+    container.appendChild(UI.pageHeader({ title: 'Recibo', subtitle: `${person.name} · ${Calc.monthLabel(month)}`, onBack: () => App.navigate('personDetail', { id: person.id }) }));
 
-    const ps = Calc.computePersonSummary(person.id, Store.cache);
-    const rows = ps.relatedInstallments.slice().sort((a, b) => a.inst.invoiceMonth > b.inst.invoiceMonth ? 1 : (a.inst.invoiceMonth < b.inst.invoiceMonth ? -1 : 0));
+    const ps = Calc.computePersonSummary(person.id, Store.cache, month);
+    const rows = ps.relatedInstallments.filter(({ inst }) => inst.invoiceMonth === month);
 
     const card = el('div', { class: 'glass receipt-card' }, [
       el('div', { class: 'receipt-header' }, [
         el('div', { class: 'rh-name' }, person.name),
-        el('div', { class: 'rh-sub' }, `Extrato completo · todos os cartões e meses`),
+        el('div', { class: 'rh-sub' }, `Movimentações de ${Calc.monthLabel(month)} · todos os cartões`),
       ]),
       el('hr', { class: 'receipt-divider' }),
     ]);
 
     if (!rows.length) {
-      card.appendChild(el('div', { class: 'empty-state', style: 'padding:20px 0' }, 'Nenhuma compra vinculada a esta pessoa.'));
+      card.appendChild(el('div', { class: 'empty-state', style: 'padding:20px 0' }, `Nenhuma compra vinculada a esta pessoa em ${Calc.monthLabel(month)}.`));
     } else {
       rows.forEach(({ inst, amount }) => {
         const purchase = Store.cache.purchases.find((p) => p.id === inst.purchaseId);
@@ -135,7 +136,7 @@ const ViewPeople = (() => {
         card.appendChild(el('div', { class: 'receipt-row' }, [
           el('div', { class: 'rr-desc' }, [
             el('div', { class: 'rr-title' }, purchase?.description || '—'),
-            el('div', { class: 'rr-meta' }, [cardObj?.name || '', parcelaTxt ? ` · ${parcelaTxt}` : '', ` · ${Calc.monthLabel(inst.invoiceMonth)}`].join('')),
+            el('div', { class: 'rr-meta' }, [cardObj?.name || '', parcelaTxt ? ` · ${parcelaTxt}` : ''].join('')),
           ]),
           el('div', { class: 'rr-value' }, fmtMoney(amount)),
         ]));
@@ -144,8 +145,8 @@ const ViewPeople = (() => {
 
     card.appendChild(el('hr', { class: 'receipt-divider' }));
     card.appendChild(el('div', { class: 'receipt-total' }, [
-      el('span', { class: 'rt-label' }, 'Total devido'),
-      el('span', { class: 'rt-value' }, fmtMoney(ps.totalDue)),
+      el('span', { class: 'rt-label' }, `Total devido em ${Calc.monthLabel(month)}`),
+      el('span', { class: 'rt-value' }, fmtMoney(ps.monthDue)),
     ]));
     card.appendChild(el('div', { class: 'receipt-footer' }, `Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`));
 

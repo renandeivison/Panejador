@@ -122,8 +122,11 @@ const UI = (() => {
         case 'installments':
           return (b.totalInstallments || 0) - (a.totalInstallments || 0);
         case 'finishing': {
-          const remA = a.totalInstallments ? a.totalInstallments - (a.installmentNumber || 0) : Infinity;
-          const remB = b.totalInstallments ? b.totalInstallments - (b.installmentNumber || 0) : Infinity;
+          // compras únicas (totalInstallments === 1) não são "parcelamentos em andamento" —
+          // devem sempre ficar depois de qualquer compra realmente parcelada, não misturadas
+          // no ranking por proximidade de término.
+          const remA = (a.totalInstallments && a.totalInstallments > 1) ? a.totalInstallments - (a.installmentNumber || 0) : Infinity;
+          const remB = (b.totalInstallments && b.totalInstallments > 1) ? b.totalInstallments - (b.installmentNumber || 0) : Infinity;
           return remA - remB;
         }
         case 'person':
