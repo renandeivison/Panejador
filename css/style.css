@@ -275,8 +275,8 @@ h1, h2, h3, h4 { font-family: var(--font-display); margin: 0; letter-spacing: -0
 .amount-hero-currency { font-family: var(--font-display); font-size: 19px; font-weight: 700; color: var(--ink-500); }
 .amount-hero-input {
   font-family: var(--font-display); font-size: 42px; font-weight: 800; letter-spacing: -0.02em;
-  text-align: center; width: auto !important; max-width: 220px;
-  background: transparent !important; border: none !important; padding: 0 !important; box-shadow: none !important;
+  text-align: center; width: 60% !important; min-width: 140px; max-width: 240px;
+  background: transparent !important; border: none !important; padding: 8px 0 !important; box-shadow: none !important;
 }
 .amount-hero-input:focus { background: transparent !important; }
 .amount-hero.income .amount-hero-input, .amount-hero.income .amount-hero-currency { color: var(--green); }
