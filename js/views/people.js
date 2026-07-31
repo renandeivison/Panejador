@@ -2,13 +2,14 @@
 const ViewPeople = (() => {
   const { el, fmtMoney } = UI;
   let sortKey = 'alpha';
+  let sortDesc = false;
   let viewMode = 'month'; // 'month' | 'total'
 
   function modeToggle(onChange) {
-    return el('div', { class: 'segmented' }, [
-      el('button', { type: 'button', class: viewMode === 'month' ? 'active' : '', onclick: (e) => { viewMode = 'month'; onChange(e); } }, 'Este mês'),
-      el('button', { type: 'button', class: viewMode === 'total' ? 'active' : '', onclick: (e) => { viewMode = 'total'; onChange(e); } }, 'Total geral'),
-    ]);
+    return UI.segmented([
+      { key: 'month', label: 'Este mês' },
+      { key: 'total', label: 'Total geral' },
+    ], viewMode, (v) => { viewMode = v; onChange(); });
   }
 
   function renderList(container) {
@@ -28,25 +29,29 @@ const ViewPeople = (() => {
     }
 
     container.appendChild(UI.filterSheet([
-      { label: 'Ordenar por', control: UI.buildSortControl(sortKey, (v) => { sortKey = v; renderList(container); }, UI.SORT_OPTIONS_SIMPLE) },
+      { label: 'Ordenar por', control: UI.buildSortControl(sortKey, (v) => { sortKey = v; renderList(container); }, UI.SORT_OPTIONS_SIMPLE, sortDesc, () => { sortDesc = !sortDesc; renderList(container); }) },
       { label: 'Período', control: modeToggle(() => renderList(container)) },
     ], { title: 'Filtros e ordenação' }));
 
     const month = App.state.currentMonth;
     const list = el('div', { class: 'list' });
     const items = Store.cache.people.map((p) => {
-      const ps = Calc.computePersonSummary(p.id, Store.cache, month);
-      const value = viewMode === 'month' ? ps.monthDue : ps.totalDue;
-      return { person: p, title: p.name, value };
-    }).sort(UI.sortComparator(sortKey));
-    items.forEach(({ person: p, value }) => {
+      const isEu = p.name === 'Eu';
+      const value = isEu
+        ? Calc.computeOwnCardSummary(Store.cache, viewMode === 'month' ? month : null).total
+        : (viewMode === 'month' ? Calc.computePersonSummary(p.id, Store.cache, month).monthDue : Calc.computePersonSummary(p.id, Store.cache, month).totalDue);
+      return { person: p, title: p.name, value, isEu };
+    }).sort(UI.sortComparator(sortKey, sortDesc));
+    items.forEach(({ person: p, value, isEu }) => {
       list.appendChild(el('div', { class: 'list-item glass', onclick: () => App.navigate('personDetail', { id: p.id }) }, [
         UI.iconChip('🏷', p.color || '#7b8cde'),
         el('div', { class: 'li-main' }, [
           el('div', { class: 'li-title' }, p.name),
-          el('div', { class: 'li-sub' }, viewMode === 'month' ? `Devido em ${Calc.monthLabel(month)}` : 'Devido no total'),
+          el('div', { class: 'li-sub' }, isEu
+            ? (viewMode === 'month' ? `Gasto em ${Calc.monthLabel(month)}` : 'Gasto total')
+            : (viewMode === 'month' ? `Devido em ${Calc.monthLabel(month)}` : 'Devido no total')),
         ]),
-        el('div', { class: 'li-value', style: `color:${value > 0 ? 'var(--amber)' : 'var(--ink-500)'}` }, fmtMoney(value)),
+        el('div', { class: 'li-value', style: `color:${isEu ? 'var(--ink-900)' : (value > 0 ? 'var(--amber)' : 'var(--ink-500)')}` }, fmtMoney(value)),
       ]));
     });
     container.appendChild(list);
@@ -57,32 +62,41 @@ const ViewPeople = (() => {
     const person = Store.cache.people.find((p) => p.id === params.id);
     if (!person) { container.appendChild(el('div', { class: 'empty-state glass' }, 'Pessoa não encontrada.')); return; }
     const month = App.state.currentMonth;
-    const ps = Calc.computePersonSummary(person.id, Store.cache, month);
-    const value = viewMode === 'month' ? ps.monthDue : ps.totalDue;
+    const isEu = person.name === 'Eu';
+    const ps = isEu
+      ? Calc.computeOwnCardSummary(Store.cache, viewMode === 'month' ? month : null)
+      : Calc.computePersonSummary(person.id, Store.cache, month);
+    const value = isEu ? ps.total : (viewMode === 'month' ? ps.monthDue : ps.totalDue);
 
     container.appendChild(UI.pageHeader({
-      title: person.name, subtitle: 'Detalhe da pessoa',
+      title: person.name, subtitle: isEu ? 'Suas próprias compras no cartão' : 'Detalhe da pessoa',
       onBack: () => App.navigate('people'),
-      actions: [
-        { icon: '✎', label: 'Editar pessoa', onClick: () => Forms.openPersonForm(person, () => App.rerender()) },
-        { icon: '🗑', label: 'Excluir pessoa', onClick: async () => {
-          const ok = await UI.confirmDialog({ title: 'Excluir pessoa', message: `Excluir "${person.name}"? O vínculo em compras já feitas será mantido, mas a pessoa não aparecerá mais na lista.`, choices: [{ label: 'Cancelar', value: null }, { label: 'Excluir', value: true, danger: true }] });
-          if (!ok) return;
-          await Store.deletePerson(person.id);
-          UI.toast('Pessoa excluída.', 'success');
-          App.navigate('people');
-        } },
-      ],
+      actions: isEu
+        ? [{ icon: '✎', label: 'Editar cor/observação', onClick: () => Forms.openPersonForm(person, () => App.rerender()) }]
+        : [
+          { icon: '✎', label: 'Editar pessoa', onClick: () => Forms.openPersonForm(person, () => App.rerender()) },
+          { icon: '🗑', label: 'Excluir pessoa', onClick: async () => {
+            const ok = await UI.confirmDialog({ title: 'Excluir pessoa', message: `Excluir "${person.name}"? O vínculo em compras já feitas será mantido, mas a pessoa não aparecerá mais na lista.`, choices: [{ label: 'Cancelar', value: null }, { label: 'Excluir', value: true, danger: true }] });
+            if (!ok) return;
+            await Store.deletePerson(person.id);
+            UI.toast('Pessoa excluída.', 'success');
+            App.navigate('people');
+          } },
+        ],
     }));
 
     container.appendChild(el('div', { class: 'hero-balance glass-strong' }, [
-      el('div', { class: 'hb-label' }, viewMode === 'month' ? `Devido em ${Calc.monthLabel(month)}` : 'Devido no total'),
-      el('div', { class: 'hb-value', style: `color:${value > 0 ? 'var(--amber)' : 'var(--ink-500)'}` }, fmtMoney(value)),
+      el('div', { class: 'hb-label' }, isEu
+        ? (viewMode === 'month' ? `Gasto em ${Calc.monthLabel(month)}` : 'Gasto total')
+        : (viewMode === 'month' ? `Devido em ${Calc.monthLabel(month)}` : 'Devido no total')),
+      el('div', { class: 'hb-value', style: `color:${isEu ? 'var(--ink-900)' : (value > 0 ? 'var(--amber)' : 'var(--ink-500)')}` }, fmtMoney(value)),
     ]));
 
     container.appendChild(modeToggle(() => renderDetail(container, params)));
 
-    container.appendChild(el('button', { class: 'btn btn-ghost btn-block mt-8', onclick: () => App.navigate('personStatement', { id: person.id }) }, `🧾 Ver recibo de ${Calc.monthLabel(month)} (todos os cartões)`));
+    if (!isEu) {
+      container.appendChild(el('button', { class: 'btn btn-ghost btn-block mt-8', onclick: () => App.navigate('personStatement', { id: person.id }) }, `🧾 Ver recibo de ${Calc.monthLabel(month)} (todos os cartões)`));
+    }
 
     container.appendChild(el('div', { class: 'section-title' }, 'Compras vinculadas'));
     const list = el('div', { class: 'list' });
@@ -113,7 +127,10 @@ const ViewPeople = (() => {
     if (!person) { container.appendChild(el('div', { class: 'empty-state glass' }, 'Pessoa não encontrada.')); return; }
     const month = App.state.currentMonth;
 
-    container.appendChild(UI.pageHeader({ title: 'Recibo', subtitle: `${person.name} · ${Calc.monthLabel(month)}`, onBack: () => App.navigate('personDetail', { id: person.id }) }));
+    container.appendChild(UI.pageHeader({
+      title: 'Recibo', subtitle: `${person.name} · ${Calc.monthLabel(month)}`, onBack: () => App.navigate('personDetail', { id: person.id }),
+      actions: [{ icon: '📤', label: 'Exportar/compartilhar imagem', onClick: () => exportReceiptImage(person, month) }],
+    }));
 
     const ps = Calc.computePersonSummary(person.id, Store.cache, month);
     const rows = ps.relatedInstallments.filter(({ inst }) => inst.invoiceMonth === month);
@@ -151,6 +168,35 @@ const ViewPeople = (() => {
     card.appendChild(el('div', { class: 'receipt-footer' }, `Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`));
 
     container.appendChild(card);
+    container.appendChild(el('button', {
+      class: 'btn btn-primary btn-block mt-14',
+      onclick: () => exportReceiptImage(person, month),
+    }, '📤 Exportar/enviar imagem do recibo'));
+  }
+
+  // Gera a imagem do recibo (mesmos dados da tela acima) e aciona o compartilhamento/download.
+  function exportReceiptImage(person, month) {
+    const ps = Calc.computePersonSummary(person.id, Store.cache, month);
+    const related = ps.relatedInstallments.filter(({ inst }) => inst.invoiceMonth === month);
+    const rows = related.map(({ inst, amount }) => {
+      const purchase = Store.cache.purchases.find((p) => p.id === inst.purchaseId);
+      const cardObj = Store.cache.cards.find((c) => c.id === inst.cardId);
+      const parcelaTxt = inst.totalInstallments ? `${String(inst.number).padStart(2, '0')}/${String(inst.totalInstallments).padStart(2, '0')}` : null;
+      return {
+        title: purchase?.description || '—',
+        meta: [cardObj?.name || '', parcelaTxt ? ` · ${parcelaTxt}` : ''].join(''),
+        valueLabel: fmtMoney(amount),
+      };
+    });
+    ReceiptExport.exportAndShare({
+      personName: person.name,
+      subtitle: `Movimentações de ${Calc.monthLabel(month)} · todos os cartões`,
+      rows,
+      totalLabel: `Total devido em ${Calc.monthLabel(month)}`,
+      totalValue: fmtMoney(ps.monthDue),
+      footer: `Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
+      fileName: `recibo-${person.name.toLowerCase().replace(/\s+/g, '-')}-${month}.png`,
+    });
   }
 
   return { renderList, renderDetail, renderStatement };

@@ -25,8 +25,8 @@ const ViewCategories = (() => {
         UI.iconChip(c.icon, c.color),
         el('div', { class: 'li-main' }, el('div', { class: 'li-title' }, c.name)),
         el('div', { class: 'flex gap-8' }, [
-          el('button', { class: 'icon-btn', onclick: (e) => { e.stopPropagation(); Forms.openCategoryForm(c, () => render(container)); } }, '✎'),
-          el('button', { class: 'icon-btn', onclick: async (e) => {
+          el('button', { class: 'icon-btn', 'aria-label': 'Editar categoria', onclick: (e) => { e.stopPropagation(); Forms.openCategoryForm(c, () => render(container)); } }, '✎'),
+          el('button', { class: 'icon-btn', 'aria-label': 'Excluir categoria', onclick: async (e) => {
             e.stopPropagation();
             const ok = await UI.confirmDialog({ title: 'Excluir categoria', message: `Excluir "${c.name}"?`, choices: [{ label: 'Cancelar', value: null }, { label: 'Excluir', value: true, danger: true }] });
             if (!ok) return;

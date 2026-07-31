@@ -40,6 +40,21 @@ const UI = (() => {
   }
 
   let modalStack = [];
+  let lockedScrollY = 0;
+
+  function lockBodyScroll() {
+    if (modalStack.length > 0) return; // já travado por outro modal na pilha
+    lockedScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    document.body.classList.add('scroll-locked');
+    document.body.style.top = `-${lockedScrollY}px`;
+  }
+
+  function unlockBodyScroll() {
+    if (modalStack.length > 0) return; // ainda há modal(is) na pilha
+    document.body.classList.remove('scroll-locked');
+    document.body.style.top = '';
+    window.scrollTo(0, lockedScrollY);
+  }
 
   function openModal({ title, content, size = 'md', onClose }) {
     const overlay = el('div', { class: 'modal-overlay' });
@@ -61,8 +76,10 @@ const UI = (() => {
       overlay.classList.remove('show');
       setTimeout(() => overlay.remove(), 220);
       modalStack = modalStack.filter((m) => m !== close);
+      unlockBodyScroll();
       if (onClose) onClose();
     }
+    if (modalStack.length === 0) lockBodyScroll();
     modalStack.push(close);
     return { close, body, overlay };
   }
@@ -108,8 +125,8 @@ const UI = (() => {
     { key: 'value', label: 'Valor' },
   ];
 
-  function sortComparator(key) {
-    return (a, b) => {
+  function sortComparator(key, desc = false) {
+    const base = (a, b) => {
       switch (key) {
         case 'value':
           return Math.abs(b.value || 0) - Math.abs(a.value || 0);
@@ -135,12 +152,20 @@ const UI = (() => {
           return 0;
       }
     };
+    return desc ? (a, b) => -base(a, b) : base;
   }
 
-  function buildSortControl(current, onChange, options) {
+  // control + botão de inverter direção (↑ crescente / ↓ decrescente), lado a lado.
+  function buildSortControl(current, onChange, options, desc = false, onToggleDesc = null) {
     const opts = options || SORT_OPTIONS_FULL;
-    return el('select', { class: 'sort-select', onchange: (e) => onChange(e.target.value) },
-      opts.map((o) => el('option', { value: o.key, selected: o.key === current ? 'selected' : undefined }, `↕ ${o.label}`)));
+    const select = el('select', { class: 'sort-select', style: 'flex:1;width:auto', onchange: (e) => onChange(e.target.value) },
+      opts.map((o) => el('option', { value: o.key, selected: o.key === current ? 'selected' : undefined }, o.label)));
+    if (!onToggleDesc) return select;
+    const dirBtn = el('button', {
+      type: 'button', class: 'icon-btn', style: 'flex-shrink:0', 'aria-label': desc ? 'Ordem decrescente (clique para inverter)' : 'Ordem crescente (clique para inverter)',
+      onclick: onToggleDesc,
+    }, desc ? '↓' : '↑');
+    return el('div', { class: 'flex gap-8 items-center' }, [select, dirBtn]);
   }
 
   function iconChip(icon, color) {
@@ -196,6 +221,27 @@ const UI = (() => {
     return btn;
   }
 
+  // Controle segmentado (grupo de botões tipo toggle). Atualiza a classe "active" dos
+  // próprios botões no clique — não depende do re-render da tela por trás do popup de
+  // filtros, que continuaria mostrando o estado antigo até o popup ser reaberto.
+  function segmented(options, current, onSelect, opts = {}) {
+    const btns = [];
+    const wrap = el('div', { class: `segmented ${opts.small ? 'segmented-sm' : ''}`.trim() },
+      options.map((o) => {
+        const b = el('button', {
+          type: 'button',
+          class: o.key === current ? 'active' : '',
+          onclick: () => {
+            btns.forEach((r) => r.el.classList.toggle('active', r.key === o.key));
+            onSelect(o.key);
+          },
+        }, o.label);
+        btns.push({ key: o.key, el: b });
+        return b;
+      }));
+    return wrap;
+  }
+
   function personTag(person, onClick) {
     if (!person) return null;
     return el('button', { class: 'tag tag-person', style: `--tag-color:${person.color || '#7b8cde'}`, onclick: onClick }, `🏷 ${person.name}`);
@@ -203,7 +249,8 @@ const UI = (() => {
 
   // Dado o array `splits` de um lançamento de cartão (sempre tem ao menos 1 item):
   // - 1 item com personId => atribuída inteiramente a essa pessoa: mostra o nome dela.
-  // - 1 item sem personId => 100% própria: não mostra nada.
+  // - 1 item sem personId => 100% própria: mostra a tag "Eu" (sem vínculo com a pessoa
+  //   "Eu" cadastrada — é só rótulo visual, não gera cobrança/divisão de verdade).
   // - 2+ itens => dividida entre múltiplas partes: mostra uma tag genérica "Dividida",
   //   em vez de destacar arbitrariamente o nome da primeira pessoa da lista.
   function splitTag(splits, onPersonClick) {
@@ -212,7 +259,10 @@ const UI = (() => {
       return el('span', { class: 'tag tag-neutral' }, '🔀 Dividida');
     }
     const only = splits[0];
-    if (!only.personId) return null;
+    if (!only.personId) {
+      const eu = Store.euPerson();
+      return el('button', { class: 'tag tag-person', style: '--tag-color:#3f6fe0', onclick: (eu && onPersonClick) ? (e) => onPersonClick(e, eu) : undefined }, '🏷 Eu');
+    }
     const person = Store.cache.people.find((p) => p.id === only.personId);
     return person ? personTag(person, onPersonClick ? (e) => onPersonClick(e, person) : undefined) : null;
   }
@@ -224,7 +274,7 @@ const UI = (() => {
 
   return {
     fmtMoney, fmtDate, fmtDateShort, el, toast, openModal, closeTopModal, confirmDialog, iconChip, iconChipSvg, personTag, categoryTag, splitTag,
-    SORT_OPTIONS_FULL, SORT_OPTIONS_SIMPLE, sortComparator, buildSortControl, pageHeader, filterSheet,
+    SORT_OPTIONS_FULL, SORT_OPTIONS_SIMPLE, sortComparator, buildSortControl, pageHeader, filterSheet, segmented,
   };
 })();
 

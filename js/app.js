@@ -5,7 +5,7 @@ const App = (() => {
   const state = {
     route: 'dashboard',
     params: {},
-    currentMonth: Calc.currentMonthRef(),
+    currentMonth: Calc.addMonths(Calc.currentMonthRef(), 1), // abre sempre no mês seguinte ao atual
     startMonth: null, // mês inicial de registro — meses anteriores não são navegáveis
   };
 
@@ -136,12 +136,12 @@ const App = (() => {
   function buildMonthSwitcher() {
     const label = el('span', { class: 'month-label', onclick: openMonthPicker }, '');
     monthLabelRefs.push(label);
-    const prevBtn = el('button', { class: 'icon-btn', onclick: () => shiftMonth(-1) }, '‹');
+    const prevBtn = el('button', { class: 'icon-btn', 'aria-label': 'Mês anterior', onclick: () => shiftMonth(-1) }, '‹');
     prevBtnRefs.push(prevBtn);
     return el('div', { class: 'month-switcher glass-soft' }, [
       prevBtn,
       label,
-      el('button', { class: 'icon-btn', onclick: () => shiftMonth(1) }, '›'),
+      el('button', { class: 'icon-btn', 'aria-label': 'Próximo mês', onclick: () => shiftMonth(1) }, '›'),
     ]);
   }
 
@@ -252,6 +252,7 @@ const App = (() => {
     await DB_ready();
     await Store.loadAll();
     await Store.seedDefaultsIfEmpty();
+    await Store.ensureEuPerson();
 
     state.startMonth = await DB.getMeta('appStartMonth', null);
     if (state.startMonth && state.currentMonth < state.startMonth) {
@@ -287,4 +288,17 @@ const App = (() => {
   return { state, navigate, rerender, init, promptInstall, setStartMonth, clearStartMonth };
 })();
 
-window.addEventListener('DOMContentLoaded', () => App.init());
+window.addEventListener('DOMContentLoaded', () => {
+  App.init().catch((err) => {
+    console.error('Falha ao iniciar o app:', err);
+    const root = document.getElementById('app-root');
+    if (root) {
+      root.innerHTML = `
+        <div class="empty-state glass" style="margin:24px 16px">
+          <div class="es-icon">⚠️</div>
+          <div class="es-title">Não foi possível abrir o app</div>
+          <div>Isso costuma acontecer quando o navegador está em modo privado/anônimo ou bloqueia o armazenamento local, que o app precisa para guardar seus dados. Tente em uma aba normal ou em outro navegador.</div>
+        </div>`;
+    }
+  });
+});

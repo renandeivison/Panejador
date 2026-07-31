@@ -2,6 +2,7 @@
 const ViewCards = (() => {
   const { el, fmtMoney } = UI;
   let detailSortKey = 'date';
+  let detailSortDesc = false;
 
   function renderList(container) {
     container.innerHTML = '';
@@ -75,8 +76,8 @@ const ViewCards = (() => {
       el('div', { class: 'cc-top' }, [
         el('div', {}, [el('div', { class: 'cc-name' }, card.name), el('div', { class: 'cc-inst' }, card.institution || '')]),
         el('div', { class: 'flex gap-8' }, [
-          el('button', { class: 'icon-btn', style: 'background:rgba(255,255,255,0.25);color:#fff', onclick: () => Forms.openCardForm(card, () => App.rerender()) }, '✎'),
-          el('button', { class: 'icon-btn', style: 'background:rgba(255,255,255,0.25);color:#fff', onclick: async () => {
+          el('button', { class: 'icon-btn', style: 'background:rgba(255,255,255,0.25);color:#fff', 'aria-label': 'Editar cartão', onclick: () => Forms.openCardForm(card, () => App.rerender()) }, '✎'),
+          el('button', { class: 'icon-btn', style: 'background:rgba(255,255,255,0.25);color:#fff', 'aria-label': 'Excluir cartão', onclick: async () => {
             const ok = await UI.confirmDialog({ title: 'Excluir cartão', message: `Excluir "${card.name}" também removerá todas as compras e parcelas vinculadas. Continuar?`, choices: [{ label: 'Cancelar', value: null }, { label: 'Excluir', value: true, danger: true }] });
             if (!ok) return;
             await Store.deleteCard(card.id);
@@ -120,7 +121,7 @@ const ViewCards = (() => {
 
     container.appendChild(el('div', { class: 'flex justify-between items-center', style: 'margin:20px 0 8px' }, [
       el('div', { class: 'section-title', style: 'margin:0' }, `Lançamentos de ${Calc.monthLabel(month)}`),
-      UI.buildSortControl(detailSortKey, (v) => { detailSortKey = v; renderDetail(container, params); }),
+      UI.buildSortControl(detailSortKey, (v) => { detailSortKey = v; renderDetail(container, params); }, undefined, detailSortDesc, () => { detailSortDesc = !detailSortDesc; renderDetail(container, params); }),
     ]));
     const list = el('div', { class: 'list' });
     const items = cs.items.filter((i) => i.invoiceMonth === month).map((i) => {
@@ -133,7 +134,7 @@ const ViewCards = (() => {
         totalInstallments: i.totalInstallments || null, installmentNumber: i.number || null,
         personName: isDivided ? 'Dividida' : (person?.name || ''), splits: i.splits,
       };
-    }).sort(UI.sortComparator(detailSortKey));
+    }).sort(UI.sortComparator(detailSortKey, detailSortDesc));
     if (!items.length) list.appendChild(el('div', { class: 'empty-state glass' }, 'Nenhum lançamento neste mês.'));
     items.forEach((it) => {
       const i = it.inst, purchase = it.purchase;

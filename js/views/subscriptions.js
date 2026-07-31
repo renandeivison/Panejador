@@ -2,6 +2,7 @@
 const ViewSubscriptions = (() => {
   const { el, fmtMoney } = UI;
   let sortKey = 'value';
+  let sortDesc = false;
 
   function render(container) {
     container.innerHTML = '';
@@ -24,7 +25,7 @@ const ViewSubscriptions = (() => {
       return;
     }
 
-    container.appendChild(UI.filterSheet([{ label: 'Ordenar por', control: UI.buildSortControl(sortKey, (v) => { sortKey = v; render(container); }) }]));
+    container.appendChild(UI.filterSheet([{ label: 'Ordenar por', control: UI.buildSortControl(sortKey, (v) => { sortKey = v; render(container); }, undefined, sortDesc, () => { sortDesc = !sortDesc; render(container); }) }]));
 
     // agrupa por compra (purchaseId) — cada assinatura é uma "linha", mostrando a cobrança deste mês (se houver)
     const purchaseIds = [...new Set(activeSubs.map((i) => i.purchaseId))];
@@ -44,7 +45,7 @@ const ViewSubscriptions = (() => {
         personName: isDivided ? 'Dividida' : (person?.name || ''), splits: inst.splits,
         billedThisMonth: !!thisMonthInst,
       };
-    }).sort(UI.sortComparator(sortKey));
+    }).sort(UI.sortComparator(sortKey, sortDesc));
 
     if (!rows.length) {
       container.appendChild(el('div', { class: 'empty-state glass' }, [

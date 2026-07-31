@@ -8,8 +8,17 @@ const ViewSettings = (() => {
 
     // Categorias — atalho para tela própria (evita poluir Configurações)
     container.appendChild(el('div', { class: 'section-title' }, 'Organização'));
-    container.appendChild(el('div', { class: 'grid grid-3' }, [
-      el('button', { class: 'stat-card glass clickable', onclick: () => App.navigate('categories') }, [el('div', { class: 'stat-label' }, 'Categorias'), el('div', { class: 'stat-value text-blue' }, `${Store.cache.categories.length}`)]),
+    container.appendChild(el('div', { class: 'list' }, [
+      el('div', { class: 'list-item glass', onclick: () => App.navigate('categories') }, [
+        UI.iconChip('🗂️', '#3f6fe0'),
+        el('div', { class: 'li-main' }, [
+          el('div', { class: 'li-title' }, 'Categorias'),
+          el('div', { class: 'li-sub' }, `${Store.cache.categories.length} cadastradas`),
+        ]),
+        el('span', { class: 'text-muted' }, '›'),
+      ]),
+    ]));
+    container.appendChild(el('div', { class: 'grid grid-3 mt-8' }, [
       el('button', { class: 'stat-card glass clickable', onclick: () => App.navigate('cards') }, [el('div', { class: 'stat-label' }, 'Cartões'), el('div', { class: 'stat-value text-blue' }, `${Store.cache.cards.length}`)]),
       el('button', { class: 'stat-card glass clickable', onclick: () => App.navigate('people') }, [el('div', { class: 'stat-label' }, 'Pessoas'), el('div', { class: 'stat-value text-blue' }, `${Store.cache.people.length}`)]),
     ]));
@@ -138,7 +147,8 @@ const ViewSettings = (() => {
       { label: 'Tipo', value: 'tipo' }, { label: 'Descrição', value: 'descricao' },
       { label: 'Valor', value: 'valor' }, { label: 'Data', value: 'data' }, { label: 'Categoria', value: 'categoria' },
     ]);
-    downloadFile(csv, `movimentacoes-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv');
+    // BOM UTF-8: sem isso, o Excel no Windows interpreta os acentos errado ao abrir o CSV.
+    downloadFile('\ufeff' + csv, `movimentacoes-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8');
     UI.toast('CSV exportado.', 'success');
   }
 

@@ -43,6 +43,22 @@ const Calc = (() => {
     return `${names[m - 1]} de ${y}`;
   }
 
+  // purchase.purchaseDate é armazenada como a data-âncora da parcela "startAt" (a parcela
+  // em que o usuário já estava ao lançar uma compra retroativa). Estas funções convertem
+  // entre essa âncora e a data real da 1ª parcela da compra, que é o que deve aparecer
+  // e ser editado na tela — editar/converter uma compra não deve deslocar essa data.
+  function firstInstallmentDate(anchorDate, startAt) {
+    if (!startAt || startAt <= 1) return anchorDate;
+    const targetMonth = addMonths(monthRefOf(anchorDate), -(startAt - 1));
+    return shiftDateToMonth(anchorDate, targetMonth);
+  }
+
+  function anchorDateFromFirstInstallment(firstDate, startAt) {
+    if (!startAt || startAt <= 1) return firstDate;
+    const targetMonth = addMonths(monthRefOf(firstDate), startAt - 1);
+    return shiftDateToMonth(firstDate, targetMonth);
+  }
+
   function currentMonthRef() {
     const d = new Date();
     return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
@@ -306,20 +322,17 @@ const Calc = (() => {
     }
 
     // responsabilidade própria vs. terceiros dentro das faturas do mês
-    let ownCardResponsibility = 0;
     let thirdPartyResponsibility = 0;
     const receivableByPerson = {};
     for (const inst of instOfMonth) {
       for (const sp of inst.splits) {
-        if (sp.personId === null) {
-          ownCardResponsibility += sp.amount;
-        } else {
+        if (sp.personId !== null) {
           thirdPartyResponsibility += sp.amount;
           receivableByPerson[sp.personId] = round2((receivableByPerson[sp.personId] || 0) + sp.amount);
         }
       }
     }
-    ownCardResponsibility = round2(ownCardResponsibility);
+    const ownCardResponsibility = computeOwnCardSummary(data, monthRef).total;
     thirdPartyResponsibility = round2(thirdPartyResponsibility);
 
     // comprometido = despesas próprias + fatura total (dinheiro que efetivamente sai da conta)
@@ -355,6 +368,24 @@ const Calc = (() => {
   // Valor devido por uma pessoa: total histórico (todas as compras vinculadas a ela) e,
   // opcionalmente, o valor referente apenas a um mês específico. Não há mais controle de
   // reembolso parcial — assume-se que o valor é sempre recebido integralmente no início do mês.
+  // Simétrico a computePersonSummary, mas para a parte "própria" (sp.personId === null)
+  // das compras no cartão — usado para mostrar "quanto eu gastei" na pessoa "Eu". Nunca
+  // deve ser somado a valores de "a receber de pessoas", que só contam terceiros.
+  function computeOwnCardSummary(data, monthRef = null) {
+    let total = 0;
+    const related = [];
+    for (const inst of data.installments) {
+      if (inst.status === 'cancelled') continue;
+      for (const sp of inst.splits) {
+        if (sp.personId !== null) continue;
+        if (monthRef && inst.invoiceMonth !== monthRef) continue;
+        total += sp.amount;
+        related.push({ inst, amount: sp.amount });
+      }
+    }
+    return { total: round2(total), relatedInstallments: related };
+  }
+
   function computePersonSummary(personId, data, monthRef = null) {
     let totalDue = 0;
     let monthDue = 0;
@@ -415,10 +446,11 @@ const Calc = (() => {
 
   return {
     pad2, monthRefOf, addMonths, monthLabel, currentMonthRef, round2, shiftDateToMonth,
+    firstInstallmentDate, anchorDateFromFirstInstallment,
     invoiceForPurchase, invoiceDetailsForMonth,
     distributeProportional, splitsForInstallment,
     generateInstallments,
-    computeMonthSummary, computePersonSummary, computeCardSummary, computeProjection,
+    computeMonthSummary, computePersonSummary, computeOwnCardSummary, computeCardSummary, computeProjection,
   };
 })();
 

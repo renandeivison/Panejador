@@ -15,7 +15,8 @@ const Forms = (() => {
   }
   function personOptions(selected, includeNone = true) {
     const opts = includeNone ? [el('option', { value: '' }, '— Nenhuma —')] : [];
-    return opts.concat(Store.cache.people.map((p) =>
+    const people = [...Store.cache.people].sort((a, b) => (a.name === 'Eu' ? -1 : b.name === 'Eu' ? 1 : a.name.localeCompare(b.name, 'pt-BR')));
+    return opts.concat(people.map((p) =>
       el('option', { value: p.id, selected: p.id === selected ? 'selected' : undefined }, p.name)
     ));
   }
@@ -31,11 +32,12 @@ const Forms = (() => {
     const title = existing ? `Editar ${isIncome ? 'receita' : 'despesa'}` : `Nova ${isIncome ? 'receita' : 'despesa'}`;
 
     const descInput = el('input', { type: 'text', placeholder: isIncome ? 'Ex: Salário' : 'Ex: Conta de energia', value: existing?.description || '' });
-    const amountInput = el('input', { type: 'number', step: '0.01', min: '0', placeholder: '0,00', value: existing?.amount ?? '' });
+    const amountInput = el('input', { type: 'number', step: '0.01', min: '0', placeholder: '0.00', value: existing?.amount ?? '', class: 'amount-hero-input' });
+    const amountHero = el('div', { class: `amount-hero ${type}` }, [el('span', { class: 'amount-hero-currency' }, 'R$'), amountInput]);
     const dateInput = el('input', { type: 'date', value: existing?.date || todayISO() });
     const catSelect = el('select', {}, categoryOptions(existing?.category));
     attachInlineCategoryCreate(catSelect);
-    const personSelect = el('select', {}, personOptions(existing?.person));
+    const personSelect = el('select', {}, personOptions(existing ? existing.person : (Store.euPerson()?.id || '')));
     const statusSelect = el('select', {}, [
       el('option', { value: 'planned', selected: (!existing || existing.status === 'planned') ? 'selected' : undefined }, 'Planejado'),
       el('option', { value: 'confirmed', selected: existing?.status === 'confirmed' ? 'selected' : undefined }, 'Confirmado'),
@@ -48,9 +50,10 @@ const Forms = (() => {
       el('button', { type: 'button', class: recurrenceMode === 'recurring' ? 'active' : '', onclick: (e) => setRecurrence('recurring', e) }, 'Recorrente'),
       el('button', { type: 'button', class: recurrenceMode === 'fixed_period' ? 'active' : '', onclick: (e) => setRecurrence('fixed_period', e) }, 'Por período'),
     ]);
+    const recEndDateInput = el('input', { type: 'date' });
     const endDateField = el('div', { class: 'field', style: recurrenceMode === 'fixed_period' ? '' : 'display:none' }, [
       el('label', {}, 'Repetir até (mês final)'),
-      el('input', { type: 'date', id: 'rec-end-date' }),
+      recEndDateInput,
     ]);
     function setRecurrence(mode, e) {
       recurrenceMode = mode;
@@ -73,16 +76,15 @@ const Forms = (() => {
     }, moreOptionsOpen ? '▾ Menos opções' : '▸ Mais opções');
 
     const body = el('form', { class: 'flex-col' }, [
+      amountHero,
       el('div', { class: 'field' }, [el('label', {}, 'Descrição'), descInput]),
       el('div', { class: 'form-row' }, [
-        el('div', { class: 'field' }, [el('label', {}, 'Valor (R$)'), amountInput]),
         el('div', { class: 'field' }, [el('label', {}, isIncome ? 'Data prevista' : 'Data de vencimento'), dateInput]),
-      ]),
-      el('div', { class: 'form-row' }, [
         el('div', { class: 'field' }, [el('label', {}, 'Categoria'), catSelect]),
-        el('div', { class: 'field' }, [el('label', {}, 'Pessoa relacionada'), personSelect]),
       ]),
-      !existing ? el('div', { class: 'field' }, [el('label', {}, 'Recorrência'), recurrenceSeg]) : null,
+      el('div', { class: 'field' }, [el('label', {}, 'Pessoa relacionada'), personSelect]),
+      !existing ? el('div', { class: 'form-section-label' }, 'Repetição') : null,
+      !existing ? el('div', { class: 'field' }, [recurrenceSeg]) : null,
       !existing ? endDateField : null,
       el('div', { class: 'field' }, [el('label', {}, 'Observação'), noteInput]),
       moreOptionsToggle,
@@ -115,7 +117,7 @@ const Forms = (() => {
           await Store.updateTransaction({ ...existing, ...payload });
           UI.toast('Atualizado com sucesso.', 'success');
         } else {
-          const recurrence = { mode: recurrenceMode, endDate: document.getElementById('rec-end-date')?.value };
+          const recurrence = { mode: recurrenceMode, endDate: recEndDateInput.value };
           await Store.createTransaction({ ...payload, recurrence });
           UI.toast('Adicionado com sucesso.', 'success');
         }
@@ -141,20 +143,22 @@ const Forms = (() => {
     const title = existing ? 'Editar compra no cartão' : 'Nova compra no cartão';
     const cardSelect = el('select', {}, cardOptions(existing?.cardId || defaultCardId));
     const descInput = el('input', { type: 'text', placeholder: 'Ex: Notebook', value: existing?.description || '' });
-    const amountInput = el('input', { type: 'number', step: '0.01', placeholder: '0,00', value: existing?.amount ?? '' });
-    const amountHint = el('div', { class: 'hint', style: 'display:none' });
-    const dateInput = el('input', { type: 'date', value: existing?.purchaseDate || todayISO() });
+    const amountInput = el('input', { type: 'number', step: '0.01', placeholder: '0.00', value: existing?.amount ?? '', class: 'amount-hero-input' });
+    const amountHero = el('div', { class: 'amount-hero' }, [el('span', { class: 'amount-hero-currency', style: 'color:var(--blue)' }, 'R$'), amountInput]);
+    Object.assign(amountInput.style, { color: 'var(--blue)' });
+    const amountHint = el('div', { class: 'hint', style: 'display:none;text-align:center;margin-top:-14px' });
+    const dateInput = el('input', { type: 'date', value: existing ? Calc.firstInstallmentDate(existing.purchaseDate, existing.startInstallmentNumber || 1) : todayISO() });
     const catSelect = el('select', {}, categoryOptions(existing?.category));
     attachInlineCategoryCreate(catSelect);
     const noteInput = el('textarea', { placeholder: 'Observação (opcional)' }, existing?.note || '');
 
     // Pessoa responsável: atribuição simples e rápida da compra inteira a uma pessoa,
     // sem precisar abrir "dividir compra". Se a divisão detalhada for ativada, ela tem prioridade.
-    let responsibleDefault = '';
+    let responsibleDefault = Store.euPerson()?.id || '';
     if (existing?.splits?.length === 1 && existing.splits[0].personId && Calc.round2(existing.splits[0].amount) === Calc.round2(existing.amount)) {
       responsibleDefault = existing.splits[0].personId;
     }
-    const responsibleSelect = el('select', {}, [el('option', { value: '' }, 'Eu (compra própria)')].concat(personOptions(responsibleDefault, false)));
+    const responsibleSelect = el('select', {}, personOptions(responsibleDefault, false));
     const responsibleField = el('div', { class: 'field' }, [
       el('label', {}, 'Pessoa responsável por esta compra'),
       responsibleSelect,
@@ -190,9 +194,9 @@ const Forms = (() => {
       el('button', { type: 'button', class: paymentType === 'subscription' ? 'active' : '', onclick: (e) => setPay('subscription', e) }, 'Assinatura'),
     ]);
 
-    const installmentsCountInput = el('input', { type: 'number', min: '2', max: '48', value: existing?.installmentsCount || 2, id: 'installments-count', onchange: () => { startInstallmentInput.max = installmentsCountInput.value; updateInstallmentAmountHint(); } });
+    const installmentsCountInput = el('input', { type: 'number', min: '2', max: '48', value: existing?.installmentsCount || 2, onchange: () => { startInstallmentInput.max = installmentsCountInput.value; updateInstallmentAmountHint(); } });
     const startInstallmentDefault = pivotInstallmentNumber || existing?.startInstallmentNumber || 1;
-    const startInstallmentInput = el('input', { type: 'number', min: '1', max: existing?.installmentsCount || 2, value: startInstallmentDefault, id: 'start-installment-number' });
+    const startInstallmentInput = el('input', { type: 'number', min: '1', max: existing?.installmentsCount || 2, value: startInstallmentDefault });
 
     // O valor digitado no campo principal pode representar o total da compra (padrão,
     // como o valor já é armazenado) ou o valor de cada parcela individualmente — útil
@@ -225,7 +229,7 @@ const Forms = (() => {
       ]),
       el('div', { class: 'field' }, [el('label', {}, 'O valor acima é'), installmentAmountModeSeg]),
       installmentAmountHint,
-      el('div', { class: 'hint', style: 'margin:-6px 0 14px' }, 'Lançando uma compra atrasada? Informe em qual parcela você já está — a data acima deve ser a data de vencimento desta parcela específica.'),
+      el('div', { class: 'hint', style: 'margin:-6px 0 14px' }, 'Lançando uma compra atrasada? Informe em qual parcela você já está — a data acima é sempre a data da 1ª parcela da compra, mesmo que ela já tenha ficado no passado.'),
     ]);
 
     let subEndless = existing ? !existing.subscriptionEndDate : true;
@@ -236,7 +240,7 @@ const Forms = (() => {
       subFixedTermFields.style.display = subEndless ? 'none' : '';
     } });
     const subInstallmentsCountInput = el('input', { type: 'number', min: '2', max: '120', value: existing?.installmentsCount || '', id: 'sub-installments-count', onchange: () => { subStartInstallmentInput.max = subInstallmentsCountInput.value; } });
-    const subStartInstallmentInput = el('input', { type: 'number', min: '1', max: existing?.installmentsCount || '', value: (pivotInstallmentNumber && existing?.paymentType === 'subscription') ? pivotInstallmentNumber : (existing?.startInstallmentNumber || 1), id: 'sub-start-installment-number' });
+    const subStartInstallmentInput = el('input', { type: 'number', min: '1', max: existing?.installmentsCount || '', value: pivotInstallmentNumber || existing?.startInstallmentNumber || 1, id: 'sub-start-installment-number' });
     const subFixedTermFields = el('div', { style: subEndless ? 'display:none' : '' }, [
       el('div', { class: 'form-row' }, [
         el('div', { class: 'field' }, [el('label', {}, 'Quantidade de parcelas'), subInstallmentsCountInput]),
@@ -303,7 +307,7 @@ const Forms = (() => {
         ]));
       };
       addRow(null, 'Eu (própria parte)', existingSplitsMap.self ?? totalVal);
-      Store.cache.people.forEach((p) => addRow(p.id, p.name, existingSplitsMap[p.id]));
+      Store.cache.people.filter((p) => p.name !== 'Eu').forEach((p) => addRow(p.id, p.name, existingSplitsMap[p.id]));
       splitRowsWrap.appendChild(el('div', { class: 'text-xs text-muted', id: 'split-sum-hint' }, ''));
       updateSplitHint();
     }
@@ -329,12 +333,11 @@ const Forms = (() => {
     splitRowsWrap.addEventListener('input', updateSplitHint);
 
     const body = el('form', { class: 'flex-col' }, [
+      amountHero,
+      amountHint,
       el('div', { class: 'field' }, [el('label', {}, 'Cartão'), cardSelect]),
       el('div', { class: 'field' }, [el('label', {}, 'Descrição da compra'), descInput]),
-      el('div', { class: 'form-row' }, [
-        el('div', { class: 'field' }, [el('label', {}, 'Valor total (R$)'), amountInput, amountHint]),
-        el('div', { class: 'field' }, [el('label', {}, 'Data da compra'), dateInput]),
-      ]),
+      el('div', { class: 'field' }, [el('label', {}, 'Data da compra'), dateInput]),
       el('div', { class: 'field' }, [el('label', {}, 'Categoria'), catSelect]),
       responsibleField,
       el('div', { class: 'field' }, [el('label', {}, 'Forma de pagamento'), paySeg]),
@@ -373,15 +376,15 @@ const Forms = (() => {
           UI.toast('A soma da divisão precisa ser igual ao valor total da compra.', 'error');
           return;
         }
-      } else if (responsibleSelect.value) {
-        // compra inteira atribuída a uma única pessoa (sem divisão detalhada)
+      } else if (responsibleSelect.value && responsibleSelect.value !== Store.euPerson()?.id) {
+        // compra inteira atribuída a uma única pessoa (sem divisão detalhada) — quando a
+        // responsável é a própria "Eu", não registramos split (é a mesma coisa que "própria").
         splits = [{ personId: responsibleSelect.value, amount }];
       }
       const payload = {
         cardId: cardSelect.value,
         description: descInput.value.trim(),
         amount,
-        purchaseDate: dateInput.value,
         category: catSelect.value || null,
         note: noteInput.value.trim(),
         paymentType: isReversal ? 'single' : paymentType,
@@ -391,9 +394,9 @@ const Forms = (() => {
         invoiceMonthOverride: overrideEnabled ? `${ovYearSelect.value}-${String(ovMonthSelect.value).padStart(2, '0')}` : null,
       };
       if (paymentType === 'installments') {
-        payload.installmentsCount = parseInt(document.getElementById('installments-count').value, 10) || 2;
+        payload.installmentsCount = parseInt(installmentsCountInput.value, 10) || 2;
         payload.startInstallmentNumber = Math.min(
-          Math.max(1, parseInt(document.getElementById('start-installment-number').value, 10) || 1),
+          Math.max(1, parseInt(startInstallmentInput.value, 10) || 1),
           payload.installmentsCount
         );
       }
@@ -406,10 +409,10 @@ const Forms = (() => {
           payload.startInstallmentNumber = startAt;
           if (subEndDateInput.value) {
             payload.subscriptionEndDate = subEndDateInput.value;
-          } else if (n && startAt && dateInput.value) {
+          } else if (n && dateInput.value) {
             // usuário preencheu quantidade/parcela mas não a data final — deriva
-            // automaticamente a partir da data informada + parcelas restantes
-            const remainingMonths = n - startAt;
+            // automaticamente a partir da data da 1ª parcela + duração total (n meses)
+            const remainingMonths = n - 1;
             const endMonth = Calc.addMonths(Calc.monthRefOf(dateInput.value), remainingMonths);
             const day = dateInput.value.slice(8, 10);
             payload.subscriptionEndDate = `${endMonth}-${day}`;
@@ -422,6 +425,10 @@ const Forms = (() => {
           payload.startInstallmentNumber = null;
         }
       }
+      // purchaseDate é armazenada internamente como a data-âncora da parcela "startAt"
+      // (mecânica usada para calcular o mês de fatura de cada parcela). O campo de data
+      // do formulário sempre representa a data da 1ª parcela — convertemos aqui.
+      payload.purchaseDate = Calc.anchorDateFromFirstInstallment(dateInput.value, payload.startInstallmentNumber || 1);
       try {
         if (existing) {
           let scope = 'series';
@@ -481,7 +488,7 @@ const Forms = (() => {
   function openCardForm(existing = null, onSaved) {
     const nameInput = el('input', { type: 'text', placeholder: 'Ex: Nubank', value: existing?.name || '' });
     const instInput = el('input', { type: 'text', placeholder: 'Ex: Nu Pagamentos', value: existing?.institution || '' });
-    const limitInput = el('input', { type: 'number', step: '0.01', min: '0', placeholder: '0,00', value: existing?.limit ?? '' });
+    const limitInput = el('input', { type: 'number', step: '0.01', min: '0', placeholder: '0.00', value: existing?.limit ?? '' });
     const closingInput = el('input', { type: 'number', min: '1', max: '31', value: existing?.closingDay || 10 });
     const dueInput = el('input', { type: 'number', min: '1', max: '31', value: existing?.dueDay || 17 });
     const colorInput = el('input', { type: 'color', value: existing?.color || '#3f6fe0' });
@@ -523,11 +530,13 @@ const Forms = (() => {
 
   // ---------------- Pessoa ----------------
   function openPersonForm(existing = null, onSaved) {
-    const nameInput = el('input', { type: 'text', placeholder: 'Ex: Mãe', value: existing?.name || '' });
+    const isEu = existing?.name === 'Eu';
+    const nameInput = el('input', { type: 'text', placeholder: 'Ex: Mãe', value: existing?.name || '', disabled: isEu ? 'disabled' : undefined });
     const colorInput = el('input', { type: 'color', value: existing?.color || '#7b8cde' });
     const noteInput = el('textarea', { placeholder: 'Observação (opcional)' }, existing?.note || '');
     const body = el('form', { class: 'flex-col' }, [
-      el('div', { class: 'field' }, [el('label', {}, 'Nome'), nameInput]),
+      el('div', { class: 'field' }, [el('label', {}, 'Nome'), nameInput,
+        isEu ? el('div', { class: 'hint' }, 'O nome "Eu" é fixo — é a pessoa usada como padrão para suas próprias movimentações.') : null]),
       el('div', { class: 'field' }, [el('label', {}, 'Cor da tag'), colorInput]),
       el('div', { class: 'field' }, [el('label', {}, 'Observação'), noteInput]),
       el('button', { type: 'submit', class: 'btn btn-primary btn-block' }, existing ? 'Salvar alterações' : 'Adicionar pessoa'),
@@ -535,8 +544,13 @@ const Forms = (() => {
     const modal = UI.openModal({ title: existing ? 'Editar pessoa' : 'Nova pessoa', content: body, size: 'sm' });
     body.addEventListener('submit', async (e) => {
       e.preventDefault();
-      if (!nameInput.value.trim()) { UI.toast('Informe o nome.', 'error'); return; }
-      await Store.upsertPerson({ ...(existing || {}), name: nameInput.value.trim(), color: colorInput.value, note: noteInput.value.trim() });
+      const trimmedName = nameInput.value.trim();
+      if (!isEu && !trimmedName) { UI.toast('Informe o nome.', 'error'); return; }
+      if (!isEu && trimmedName.toLowerCase() === 'eu') {
+        UI.toast('Já existe a pessoa "Eu" — escolha outro nome.', 'error');
+        return;
+      }
+      await Store.upsertPerson({ ...(existing || {}), name: isEu ? 'Eu' : trimmedName, color: colorInput.value, note: noteInput.value.trim() });
       UI.toast('Pessoa salva.', 'success');
       modal.close();
       onSaved && onSaved();
@@ -673,7 +687,7 @@ const Forms = (() => {
         rows.slice(0, 40).forEach((r) => {
           const excluded = !activeFilter(r);
           const isInstallmentRow = r.installmentNumber && r.installmentTotal;
-          list.appendChild(el('div', { class: 'list-item glass-soft', style: excluded ? 'opacity:.45' : '' }, [
+          list.appendChild(el('div', { class: 'list-item glass glass-soft', style: excluded ? 'opacity:.45' : '' }, [
             UI.iconChip(r.isPayment ? '💵' : isInstallmentRow ? '📅' : (r.amount < 0 ? '↩️' : '🧾'), r.isPayment ? '#3f6fe0' : (r.amount < 0 ? '#17a06b' : '#3f6fe0')),
             el('div', { class: 'li-main' }, [
               el('div', { class: 'li-title' }, isInstallmentRow ? r.baseTitle : r.title),
@@ -735,19 +749,19 @@ const Forms = (() => {
   // ---------------- Menu de ação rápida (FAB) ----------------
   function openQuickAddMenu(onSaved) {
     const body = el('div', { class: 'flex-col gap-8' }, [
-      el('button', { class: 'list-item glass-soft', onclick: () => { UI.closeTopModal(); openTransactionForm('income', null, onSaved); } }, [
+      el('button', { class: 'list-item glass glass-soft', onclick: () => { UI.closeTopModal(); openTransactionForm('income', null, onSaved); } }, [
         UI.iconChip('💰', '#17a06b'),
         el('div', { class: 'li-main' }, [el('div', { class: 'li-title' }, 'Nova receita'), el('div', { class: 'li-sub' }, 'Salário, rendimento, aluguel recebido...')]),
       ]),
-      el('button', { class: 'list-item glass-soft', onclick: () => { UI.closeTopModal(); openTransactionForm('expense', null, onSaved); } }, [
+      el('button', { class: 'list-item glass glass-soft', onclick: () => { UI.closeTopModal(); openTransactionForm('expense', null, onSaved); } }, [
         UI.iconChip('🧾', '#e0393e'),
         el('div', { class: 'li-main' }, [el('div', { class: 'li-title' }, 'Nova despesa'), el('div', { class: 'li-sub' }, 'Contas, aluguel, escola...')]),
       ]),
-      el('button', { class: 'list-item glass-soft', onclick: () => { UI.closeTopModal(); openCardPurchaseForm(null, onSaved); } }, [
+      el('button', { class: 'list-item glass glass-soft', onclick: () => { UI.closeTopModal(); openCardPurchaseForm(null, onSaved); } }, [
         UI.iconChip('💳', '#3f6fe0'),
         el('div', { class: 'li-main' }, [el('div', { class: 'li-title' }, 'Nova compra no cartão'), el('div', { class: 'li-sub' }, 'Única, parcelada, assinatura ou estorno (valor negativo)')]),
       ]),
-      el('button', { class: 'list-item glass-soft', onclick: () => { UI.closeTopModal(); openImportInvoiceForm(null, onSaved); } }, [
+      el('button', { class: 'list-item glass glass-soft', onclick: () => { UI.closeTopModal(); openImportInvoiceForm(null, onSaved); } }, [
         UI.iconChip('📄', '#17a06b'),
         el('div', { class: 'li-main' }, [el('div', { class: 'li-title' }, 'Importar fatura (CSV)'), el('div', { class: 'li-sub' }, 'Lança todos os itens de um extrato de cartão')]),
       ]),
@@ -787,7 +801,7 @@ const Forms = (() => {
       const cat = Store.cache.categories.find((c) => c.id === t.category);
       const cb = el('input', { type: 'checkbox' });
       checkboxRefs.push({ cb, t });
-      listWrap.appendChild(el('div', { class: 'list-item glass-soft' }, [
+      listWrap.appendChild(el('div', { class: 'list-item glass glass-soft' }, [
         cb,
         el('div', { class: 'li-main' }, [
           el('div', { class: 'li-title' }, t.description),
@@ -801,7 +815,7 @@ const Forms = (() => {
 
     const body = el('div', { class: 'flex-col' }, [
       el('div', { class: 'text-xs text-muted mb-8' }, `Selecione quais ${label} de meses anteriores você quer repetir em ${Calc.monthLabel(month)}.`),
-      el('div', { class: 'list-item glass-soft', style: 'margin-bottom:8px' }, [selectAll, el('div', { class: 'li-main' }, el('div', { class: 'li-title' }, 'Selecionar todos'))]),
+      el('div', { class: 'list-item glass glass-soft', style: 'margin-bottom:8px' }, [selectAll, el('div', { class: 'li-main' }, el('div', { class: 'li-title' }, 'Selecionar todos'))]),
       listWrap,
       el('button', {
         class: 'btn btn-primary btn-block mt-14',

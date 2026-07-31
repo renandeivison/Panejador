@@ -3,6 +3,7 @@ const ViewTransactions = (() => {
   const { el, fmtMoney } = UI;
   let filters = { type: 'all', category: 'all', person: 'all', card: 'all', status: 'all', q: '' };
   let sortKey = 'date';
+  let sortDesc = false;
 
   function render(container, params = {}) {
     if (params.type) filters.type = params.type;
@@ -20,7 +21,7 @@ const ViewTransactions = (() => {
     const personSelect = el('select', { onchange: (e) => { filters.person = e.target.value; renderList(); } },
       [el('option', { value: 'all' }, 'Todas pessoas')].concat(Store.cache.people.map((p) => el('option', { value: p.id, selected: filters.person === p.id ? 'selected' : undefined }, p.name))));
     const searchInput = el('input', { type: 'text', placeholder: 'Buscar por descrição...', value: filters.q, oninput: (e) => { filters.q = e.target.value; renderList(); } });
-    const sortSelect = UI.buildSortControl(sortKey, (v) => { sortKey = v; renderList(); });
+    const sortSelect = UI.buildSortControl(sortKey, (v) => { sortKey = v; renderList(); }, undefined, sortDesc, () => { sortDesc = !sortDesc; renderList(); });
 
     container.appendChild(el('div', { class: 'field' }, searchInput));
     container.appendChild(UI.filterSheet([
@@ -49,7 +50,7 @@ const ViewTransactions = (() => {
         if (filters.person !== 'all' && !(it.personIds || []).includes(filters.person)) return false;
         if (filters.q && !it.title.toLowerCase().includes(filters.q.toLowerCase())) return false;
         return true;
-      }).sort(UI.sortComparator(sortKey));
+      }).sort(UI.sortComparator(sortKey, sortDesc));
 
       if (!filtered.length) {
         listWrap.appendChild(el('div', { class: 'empty-state glass' }, [

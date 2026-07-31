@@ -41,6 +41,18 @@ const Store = (() => {
     await loadAll();
   }
 
+  // Garante que sempre exista uma pessoa "Eu" — é o padrão para qualquer movimentação
+  // (o usuário só muda se escolher outra pessoa explicitamente). Recria sozinha caso
+  // tenha sido excluída, então também é chamada a cada carregamento.
+  async function ensureEuPerson() {
+    if (cache.people.some((p) => p.name === 'Eu')) return;
+    await DB.add('people', { name: 'Eu', color: '#3f6fe0' });
+    await loadAll();
+  }
+  function euPerson() {
+    return cache.people.find((p) => p.name === 'Eu') || null;
+  }
+
   // ---------- Categorias ----------
   async function saveCategory(obj) { await DB.add('categories', obj.id ? obj : obj); await loadAll(); }
   async function upsertCategory(obj) {
@@ -54,7 +66,12 @@ const Store = (() => {
     if (obj.id) await DB.put('people', obj); else await DB.add('people', obj);
     await loadAll();
   }
-  async function deletePerson(id) { await DB.delete('people', id); await loadAll(); }
+  async function deletePerson(id) {
+    const p = cache.people.find((pp) => pp.id === id);
+    if (p && p.name === 'Eu') throw new Error('A pessoa "Eu" não pode ser excluída.');
+    await DB.delete('people', id);
+    await loadAll();
+  }
 
   // ---------- Cartões ----------
   async function upsertCard(obj) {
@@ -402,6 +419,31 @@ const Store = (() => {
       if (Array.isArray(d[key]) && d[key].length) await DB.putMany(key, d[key]);
     }
     await loadAll();
+    // Mesclar um backup que já tinha sua própria "Eu" pode gerar duas pessoas com esse
+    // nome (ids diferentes) — mantemos a mais antiga e reatribui tudo que apontava
+    // para a(s) outra(s), pra não quebrar o padrão de "Eu = pessoa fixa e única".
+    await dedupePeopleByName('Eu');
+  }
+
+  async function dedupePeopleByName(name) {
+    const dups = cache.people.filter((p) => p.name === name);
+    if (dups.length <= 1) return;
+    dups.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+    const keep = dups[0];
+    const removeIds = new Set(dups.slice(1).map((p) => p.id));
+    for (const inst of cache.installments) {
+      let changed = false;
+      const splits = inst.splits.map((sp) => {
+        if (sp.personId && removeIds.has(sp.personId)) { changed = true; return { ...sp, personId: keep.id }; }
+        return sp;
+      });
+      if (changed) await DB.put('installments', { ...inst, splits });
+    }
+    for (const t of cache.transactions) {
+      if (t.person && removeIds.has(t.person)) await DB.put('transactions', { ...t, person: keep.id });
+    }
+    for (const id of removeIds) await DB.delete('people', id);
+    await loadAll();
   }
 
   function toCSV(rows, columns) {
@@ -416,7 +458,7 @@ const Store = (() => {
   }
 
   return {
-    cache, subscribe, loadAll, seedDefaultsIfEmpty,
+    cache, subscribe, loadAll, seedDefaultsIfEmpty, ensureEuPerson, euPerson,
     upsertCategory, deleteCategory,
     upsertPerson, deletePerson,
     upsertCard, deleteCard,

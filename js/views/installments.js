@@ -2,8 +2,9 @@
 const ViewInstallments = (() => {
   const { el, fmtMoney } = UI;
   let sortKey = 'date';
+  let sortDesc = false;
   let groupBy = 'card'; // 'card' | 'person'
-  let scope = 'all'; // 'all' | 'thisMonth'
+  let scope = 'thisMonth'; // 'all' | 'thisMonth'
 
   function buildRow(i) {
     const purchase = Store.cache.purchases.find((p) => p.id === i.purchaseId);
@@ -67,15 +68,15 @@ const ViewInstallments = (() => {
     }
 
     container.appendChild(UI.filterSheet([
-      { label: 'Ordenar por', control: UI.buildSortControl(sortKey, (v) => { sortKey = v; render(container); }) },
-      { label: 'Agrupar por', control: el('div', { class: 'segmented' }, [
-        el('button', { type: 'button', class: groupBy === 'card' ? 'active' : '', onclick: () => { groupBy = 'card'; render(container); } }, 'Por cartão'),
-        el('button', { type: 'button', class: groupBy === 'person' ? 'active' : '', onclick: () => { groupBy = 'person'; render(container); } }, 'Por pessoa'),
-      ]) },
-      { label: 'Período', control: el('div', { class: 'segmented segmented-sm' }, [
-        el('button', { type: 'button', class: scope === 'all' ? 'active' : '', onclick: () => { scope = 'all'; render(container); } }, 'Todas as parcelas'),
-        el('button', { type: 'button', class: scope === 'thisMonth' ? 'active' : '', onclick: () => { scope = 'thisMonth'; render(container); } }, 'Este mês'),
-      ]) },
+      { label: 'Ordenar por', control: UI.buildSortControl(sortKey, (v) => { sortKey = v; render(container); }, undefined, sortDesc, () => { sortDesc = !sortDesc; render(container); }) },
+      { label: 'Agrupar por', control: UI.segmented([
+        { key: 'card', label: 'Por cartão' },
+        { key: 'person', label: 'Por pessoa' },
+      ], groupBy, (v) => { groupBy = v; render(container); }) },
+      { label: 'Período', control: UI.segmented([
+        { key: 'all', label: 'Todas as parcelas' },
+        { key: 'thisMonth', label: 'Este mês' },
+      ], scope, (v) => { scope = v; render(container); }, { small: true }) },
     ]));
 
     if (!future.length) {
@@ -89,7 +90,7 @@ const ViewInstallments = (() => {
 
     if (groupBy === 'card') {
       Store.cache.cards.forEach((card) => {
-        const items = future.filter((i) => i.cardId === card.id).map(buildRow).sort(UI.sortComparator(sortKey));
+        const items = future.filter((i) => i.cardId === card.id).map(buildRow).sort(UI.sortComparator(sortKey, sortDesc));
         if (!items.length) return;
         const cardTotal = Calc.round2(items.reduce((a, it) => a + it.value, 0));
         container.appendChild(renderGroupHeader('💳', card.color || '#3f6fe0', card.name, cardTotal));
@@ -107,18 +108,18 @@ const ViewInstallments = (() => {
         });
 
       if (selfRows.length) {
-        const items = selfRows.sort(UI.sortComparator(sortKey));
+        const items = selfRows.sort(UI.sortComparator(sortKey, sortDesc));
         container.appendChild(renderGroupHeader('🏠', '#3f6fe0', 'Minhas parcelas', Calc.round2(items.reduce((a, it) => a + it.value, 0))));
         container.appendChild(renderRowList(items));
       }
       peopleIds.forEach((pid) => {
         const person = Store.cache.people.find((p) => p.id === pid);
-        const items = rows.filter((r) => r.person?.id === pid).sort(UI.sortComparator(sortKey));
+        const items = rows.filter((r) => r.person?.id === pid).sort(UI.sortComparator(sortKey, sortDesc));
         container.appendChild(renderGroupHeader('🏷', person?.color || '#7b8cde', person?.name || '—', Calc.round2(items.reduce((a, it) => a + it.value, 0))));
         container.appendChild(renderRowList(items));
       });
       if (dividedRows.length) {
-        const items = dividedRows.sort(UI.sortComparator(sortKey));
+        const items = dividedRows.sort(UI.sortComparator(sortKey, sortDesc));
         container.appendChild(renderGroupHeader('🔀', '#3f6fe0', 'Divididas', Calc.round2(items.reduce((a, it) => a + it.value, 0))));
         container.appendChild(renderRowList(items));
       }
