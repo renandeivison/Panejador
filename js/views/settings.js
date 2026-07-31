@@ -6,19 +6,9 @@ const ViewSettings = (() => {
     container.innerHTML = '';
     container.appendChild(UI.pageHeader({ title: 'Configurações', subtitle: 'Categorias, dados e preferências', onBack: () => App.navigate('more') }));
 
-    // Categorias — atalho para tela própria (evita poluir Configurações)
     container.appendChild(el('div', { class: 'section-title' }, 'Organização'));
-    container.appendChild(el('div', { class: 'list' }, [
-      el('div', { class: 'list-item glass', onclick: () => App.navigate('categories') }, [
-        UI.iconChip('🗂️', '#3f6fe0'),
-        el('div', { class: 'li-main' }, [
-          el('div', { class: 'li-title' }, 'Categorias'),
-          el('div', { class: 'li-sub' }, `${Store.cache.categories.length} cadastradas`),
-        ]),
-        el('span', { class: 'text-muted' }, '›'),
-      ]),
-    ]));
-    container.appendChild(el('div', { class: 'grid grid-3 mt-8' }, [
+    container.appendChild(el('div', { class: 'grid grid-3' }, [
+      el('button', { class: 'stat-card glass clickable', onclick: () => App.navigate('categories') }, [el('div', { class: 'stat-label' }, 'Categorias'), el('div', { class: 'stat-value text-blue' }, `${Store.cache.categories.length}`)]),
       el('button', { class: 'stat-card glass clickable', onclick: () => App.navigate('cards') }, [el('div', { class: 'stat-label' }, 'Cartões'), el('div', { class: 'stat-value text-blue' }, `${Store.cache.cards.length}`)]),
       el('button', { class: 'stat-card glass clickable', onclick: () => App.navigate('people') }, [el('div', { class: 'stat-label' }, 'Pessoas'), el('div', { class: 'stat-value text-blue' }, `${Store.cache.people.length}`)]),
     ]));

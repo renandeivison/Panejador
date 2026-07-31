@@ -4,6 +4,8 @@ const ViewPeople = (() => {
   let sortKey = 'alpha';
   let sortDesc = false;
   let viewMode = 'month'; // 'month' | 'total'
+  let detailSortKey = 'date';
+  let detailSortDesc = false;
 
   function modeToggle(onChange) {
     return UI.segmented([
@@ -98,20 +100,31 @@ const ViewPeople = (() => {
       container.appendChild(el('button', { class: 'btn btn-ghost btn-block mt-8', onclick: () => App.navigate('personStatement', { id: person.id }) }, `🧾 Ver recibo de ${Calc.monthLabel(month)} (todos os cartões)`));
     }
 
-    container.appendChild(el('div', { class: 'section-title' }, 'Compras vinculadas'));
-    const list = el('div', { class: 'list' });
     const related = viewMode === 'month'
       ? ps.relatedInstallments.filter(({ inst }) => inst.invoiceMonth === month)
       : ps.relatedInstallments;
+    container.appendChild(el('div', { class: 'flex justify-between items-center', style: 'margin:20px 0 8px' }, [
+      el('div', { class: 'section-title', style: 'margin:0' }, 'Compras vinculadas'),
+      UI.filterSheet([
+        { label: 'Ordenar por', control: UI.buildSortControl(detailSortKey, (v) => { detailSortKey = v; renderDetail(container, params); }, UI.SORT_OPTIONS_FULL, detailSortDesc, () => { detailSortDesc = !detailSortDesc; renderDetail(container, params); }) },
+      ]),
+    ]));
+    const list = el('div', { class: 'list' });
     if (!related.length) list.appendChild(el('div', { class: 'empty-state glass' }, viewMode === 'month' ? 'Nenhuma compra vinculada a esta pessoa neste mês.' : 'Nenhuma compra vinculada a esta pessoa.'));
-    related.sort((a, b) => a.inst.invoiceMonth > b.inst.invoiceMonth ? 1 : -1).forEach(({ inst, amount }) => {
+    const rows = related.map(({ inst, amount }) => {
       const purchase = Store.cache.purchases.find((p) => p.id === inst.purchaseId);
       const card = Store.cache.cards.find((c) => c.id === inst.cardId);
+      const cat = Store.cache.categories.find((c) => c.id === purchase?.category);
+      return { inst, purchase, card, cat, amount, title: purchase?.description || '—', value: amount, date: inst.purchaseDate, totalInstallments: inst.totalInstallments || null, installmentNumber: inst.number || null };
+    }).sort(UI.sortComparator(detailSortKey, detailSortDesc));
+    rows.forEach(({ inst, purchase, card, cat, amount }) => {
+      const parcelaTxt = inst.totalInstallments > 1 ? `${inst.number}/${inst.totalInstallments}` : (inst.kind === 'subscription' ? 'Assinatura' : (inst.kind === 'reversal' ? 'Estorno' : null));
+      const dataTxt = `${inst.invoiceMonth.slice(5, 7)}/${inst.invoiceMonth.slice(0, 4)}`;
       list.appendChild(el('div', { class: 'list-item glass', onclick: () => Details.openInstallmentDetail(inst, () => App.rerender()) }, [
-        UI.iconChip('💳', card?.color || '#3f6fe0'),
+        UI.iconChip(cat?.icon || '💳', card?.color || '#3f6fe0'),
         el('div', { class: 'li-main' }, [
           el('div', { class: 'li-title' }, purchase?.description || '—'),
-          el('div', { class: 'li-sub' }, `${card?.name || ''} · ${Calc.monthLabel(inst.invoiceMonth)}`),
+          el('div', { class: 'li-sub' }, [card?.name || '', parcelaTxt, dataTxt].filter(Boolean).join(' · ')),
         ]),
         el('div', { class: 'li-value' }, fmtMoney(amount)),
       ]));
