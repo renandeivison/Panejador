@@ -241,8 +241,19 @@ const Store = (() => {
     function findMatchingSeries(baseTitle, installmentTotal, rowAmount) {
       const candidates = purchasePool.filter((p) =>
         p.cardId === cardId && p.paymentType === 'installments' &&
-        p.description === baseTitle && p.installmentsCount === installmentTotal);
+        (p.importedTitle || p.description) === baseTitle && p.installmentsCount === installmentTotal);
       return candidates.find((p) => Math.abs(Calc.round2(p.amount) / installmentTotal - rowAmount) < 0.02);
+    }
+
+    // Ao ligar uma nova parcela a uma série já existente (fatura de outro mês reimportada),
+    // herda a pessoa responsável já atribuída às outras parcelas da série — sem isso, toda
+    // parcela nova viria sempre como "própria", perdendo a divisão que o usuário já tinha
+    // configurado. Só replica quando a divisão é simples (uma pessoa só, ou própria); uma
+    // divisão entre várias pessoas não é replicada automaticamente, pra não arriscar
+    // proporções erradas — fica como "própria" pro usuário ajustar à mão.
+    function inheritSplitsFor(purchaseId, amount) {
+      const withPerson = installmentPool.find((i) => i.purchaseId === purchaseId && i.splits?.length === 1 && i.splits[0].personId);
+      return [{ personId: withPerson ? withPerson.splits[0].personId : null, amount }];
     }
 
     for (const row of rows) {
@@ -251,17 +262,21 @@ const Store = (() => {
         const existingSeries = findMatchingSeries(baseTitle, row.installmentTotal, row.amount);
 
         if (existingSeries) {
-          // já existe a série (de uma importação/edição anterior) — só garante que esta
-          // parcela específica exista, sem recriar a compra nem as demais parcelas.
-          const already = cache.installments.some((i) => i.purchaseId === existingSeries.id && i.number === row.installmentNumber);
-          if (!already) {
+          // a série já existe — mas toda parcela futura dela já foi criada como
+          // ESTIMATIVA desde a criação da série (confirmedFromImport ausente/false).
+          // Só é duplicata de verdade se essa parcela específica já veio de um CSV
+          // confirmado antes; caso contrário, atualiza o placeholder estimado com os
+          // dados reais desta linha (data, valor, mês) e herda o responsável da série.
+          const existingInst = installmentPool.find((i) => i.purchaseId === existingSeries.id && i.number === row.installmentNumber);
+          const alreadyConfirmed = !!(existingInst && existingInst.confirmedFromImport);
+          if (!alreadyConfirmed) {
             const monthN = inv.invoiceMonth; // esta linha já nos diz exatamente o mês desta parcela
             const invN = Calc.invoiceDetailsForMonth(card, monthN);
             newInstallments.push({
-              id: DB.uid(), purchaseId: existingSeries.id, cardId, number: row.installmentNumber,
+              id: existingInst ? existingInst.id : DB.uid(), purchaseId: existingSeries.id, cardId, number: row.installmentNumber,
               totalInstallments: row.installmentTotal, amount: row.amount, purchaseDate: row.date,
               invoiceMonth: invN.invoiceMonth, invoiceDueDate: invN.dueDate, kind: 'installment',
-              splits: [{ personId: null, amount: row.amount }], status: 'planned',
+              splits: inheritSplitsFor(existingSeries.id, row.amount), status: 'planned', confirmedFromImport: true,
             });
           }
           seriesLinked++;
@@ -277,6 +292,7 @@ const Store = (() => {
           id: DB.uid(),
           cardId,
           description: baseTitle,
+          importedTitle: baseTitle, // nome original do CSV — usado para reconhecer a série em futuras importações, mesmo que o usuário renomeie a compra no app
           amount: totalEstimate,
           purchaseDate: row.date,
           category: defaultCategory || null,
@@ -297,6 +313,7 @@ const Store = (() => {
             purchaseDate: n === row.installmentNumber ? row.date : Calc.shiftDateToMonth(row.date, monthN),
             invoiceMonth: invN.invoiceMonth, invoiceDueDate: invN.dueDate, kind: 'installment',
             splits: [{ personId: null, amount: row.amount }], status: 'planned',
+            confirmedFromImport: n === row.installmentNumber, // só esta parcela veio de fato do CSV; as outras são estimativa
           });
         }
         newPurchases.push(purchase);
@@ -309,6 +326,7 @@ const Store = (() => {
           id: DB.uid(),
           cardId,
           description: row.title,
+          importedTitle: row.title, // nome original do CSV — não muda mesmo que o usuário renomeie a compra no app
           amount: Math.abs(row.amount),
           purchaseDate: row.date,
           category: defaultCategory || null,
@@ -365,14 +383,24 @@ const Store = (() => {
         installmentsToRemoveOnly.push(inst.id);
       }
     }
+    // snapshot de tudo que será removido — permite restaurar depois em Configurações,
+    // já que resetar um mês também apaga parcelas/assinaturas que só tinham aquele
+    // lançamento (não é reversível olhando só pro que sobrou no app).
+    const purchasesRemovedSnapshot = [...purchasesToFullyDelete].map((id) => cache.purchases.find((p) => p.id === id)).filter(Boolean);
+    const installmentsSnapshot = monthInstallments.slice();
+    const reimbToRemove = cache.reimbursements.filter((r) => Calc.monthRefOf(r.date) === monthRef);
+    await DB.setMeta('lastMonthReset', {
+      monthRef, timestamp: Date.now(),
+      transactions: txToRemove, purchases: purchasesRemovedSnapshot,
+      installments: installmentsSnapshot, reimbursements: reimbToRemove,
+    });
+
     for (const purchaseId of purchasesToFullyDelete) {
       const relatedInstallments = cache.installments.filter((i) => i.purchaseId === purchaseId).map((i) => i.id);
       await DB.deleteMany('installments', relatedInstallments);
       await DB.delete('purchases', purchaseId);
     }
     if (installmentsToRemoveOnly.length) await DB.deleteMany('installments', installmentsToRemoveOnly);
-
-    const reimbToRemove = cache.reimbursements.filter((r) => Calc.monthRefOf(r.date) === monthRef);
     await DB.deleteMany('reimbursements', reimbToRemove.map((r) => r.id));
 
     await loadAll();
@@ -381,6 +409,32 @@ const Store = (() => {
       cardLaunches: monthInstallments.length,
       purchasesRemoved: purchasesToFullyDelete.size,
       reimbursements: reimbToRemove.length,
+    };
+  }
+
+  // Devolve o snapshot do último "Resetar mês" (ou null se não há nada pra restaurar,
+  // seja porque nunca foi resetado ou porque já foi restaurado/substituído).
+  async function getLastMonthReset() {
+    return DB.getMeta('lastMonthReset', null);
+  }
+
+  // Restaura o que foi removido no último "Resetar mês". Usa put (não add) porque os
+  // registros originais já têm id — reinserir com o mesmo id evita duplicar caso algo
+  // já tenha sido restaurado parcialmente.
+  async function restoreLastMonthReset() {
+    const snap = await DB.getMeta('lastMonthReset', null);
+    if (!snap) throw new Error('Não há um mês resetado para restaurar.');
+    for (const p of snap.purchases) await DB.put('purchases', p);
+    for (const i of snap.installments) await DB.put('installments', i);
+    for (const t of snap.transactions) await DB.put('transactions', t);
+    for (const r of snap.reimbursements) await DB.put('reimbursements', r);
+    await DB.setMeta('lastMonthReset', null);
+    await loadAll();
+    return {
+      monthRef: snap.monthRef,
+      transactions: snap.transactions.length,
+      cardLaunches: snap.installments.length,
+      reimbursements: snap.reimbursements.length,
     };
   }
 
@@ -465,7 +519,7 @@ const Store = (() => {
     createTransaction, updateTransaction, deleteTransaction,
     createCardPurchase, updateCardPurchase, updateSingleInstallment, deletePurchase, cancelSubscription,
     importCardStatement,
-    resetMonth, resetAll,
+    resetMonth, resetAll, getLastMonthReset, restoreLastMonthReset,
     exportJSON, importJSON, toCSV,
   };
 })();

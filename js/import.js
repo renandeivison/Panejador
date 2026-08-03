@@ -74,25 +74,39 @@ const CSVImport = (() => {
   }
 
   // Detecta possíveis duplicatas.
-  // - Linhas de parcela: já existe uma série (mesma descrição-base + nº de parcelas) no
+  // - Linhas de parcela: já existe uma série (mesmo nome ORIGINAL do CSV — não o nome que
+  //   o usuário deu depois no app — + nº de parcelas + valor por parcela compatível) no
   //   cartão com essa parcela específica já lançada?
-  // - Demais linhas: mesma data + descrição + valor já lançados no cartão?
+  // - Demais linhas (compra avulsa, estorno, pagamento): o nome NÃO entra na conta — duas
+  //   compras de nomes idênticos no mesmo dia podem ter valores diferentes (ex: duas
+  //   compras numa farmácia no mesmo dia) e são lançamentos genuinamente distintos. O que
+  //   importa é a combinação data + valor: se baterem (com folga de até 1%, mínimo
+  //   R$0,05, pra cobrir arredondamento), é uma forte candidata a duplicata — comum
+  //   quando o Nubank fornece faturas parciais durante o mês e o usuário reimporta depois
+  //   uma fatura mais completa cobrindo o mesmo período.
   function findDuplicates(cardId, rows) {
     const existingPurchases = Store.cache.purchases.filter((p) => p.cardId === cardId);
     const existingInstallments = Store.cache.installments;
     return rows.map((r) => {
-      let dup = false;
+      let duplicate = false, matchType = null;
       if (r.installmentNumber && r.installmentTotal) {
         const candidates = existingPurchases.filter((p) =>
-          p.paymentType === 'installments' && p.description === r.baseTitle && p.installmentsCount === r.installmentTotal);
+          p.paymentType === 'installments' && (p.importedTitle || p.description) === r.baseTitle && p.installmentsCount === r.installmentTotal);
         const series = candidates.find((p) => Math.abs(Calc.round2(p.amount) / r.installmentTotal - r.amount) < 0.02);
         if (series) {
-          dup = existingInstallments.some((i) => i.purchaseId === series.id && i.number === r.installmentNumber);
+          const existingInst = existingInstallments.find((i) => i.purchaseId === series.id && i.number === r.installmentNumber);
+          duplicate = !!(existingInst && existingInst.confirmedFromImport);
+          if (duplicate) matchType = 'exact';
         }
       } else {
-        dup = existingPurchases.some((p) => p.purchaseDate === r.date && p.description === r.title && Calc.round2(p.amount) === Calc.round2(Math.abs(r.amount)));
+        for (const p of existingPurchases) {
+          if (p.purchaseDate !== r.date) continue;
+          const amountDiff = Math.abs(Calc.round2(p.amount) - Calc.round2(Math.abs(r.amount)));
+          const amountTolerance = Math.max(0.05, Calc.round2(p.amount) * 0.01);
+          if (amountDiff <= amountTolerance) { duplicate = true; matchType = amountDiff < 0.005 ? 'exact' : 'similar'; break; }
+        }
       }
-      return { ...r, duplicate: dup };
+      return { ...r, duplicate, matchType };
     });
   }
 
