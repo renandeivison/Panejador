@@ -74,15 +74,16 @@ const ViewSettings = (() => {
 
     // Zona de risco
     container.appendChild(el('div', { class: 'section-title' }, 'Zona de risco'));
+    const restoreSlot = el('div', {});
     const dangerCard = el('div', { class: 'glass', style: 'padding:16px;border:1px solid rgba(224,57,62,0.25)' }, [
       el('div', { class: 'flex-col' }, [
         el('div', {}, [
           el('div', { style: 'font-weight:700;font-size:13px' }, `Resetar ${Calc.monthLabel(App.state.currentMonth)}`),
-          el('div', { class: 'text-xs text-muted mt-8' }, 'Remove receitas, despesas e lançamentos de cartão apenas deste mês. Parcelas e assinaturas em andamento continuam nos demais meses.'),
+          el('div', { class: 'text-xs text-muted mt-8' }, 'Remove receitas, despesas e lançamentos de cartão apenas deste mês. Parcelas e assinaturas em andamento continuam nos demais meses. Dá pra restaurar depois, logo abaixo.'),
           el('button', { class: 'btn btn-danger btn-sm mt-8', onclick: async () => {
             const ok = await UI.confirmDialog({
               title: 'Resetar mês',
-              message: `Isso vai apagar todos os lançamentos planejados para ${Calc.monthLabel(App.state.currentMonth)}. Esta ação não pode ser desfeita. Continuar?`,
+              message: `Isso vai apagar todos os lançamentos planejados para ${Calc.monthLabel(App.state.currentMonth)}. Dá pra restaurar depois em Configurações, mas só até o próximo mês resetado. Continuar?`,
               choices: [{ label: 'Cancelar', value: null }, { label: 'Resetar este mês', value: true, danger: true }],
             });
             if (!ok) return;
@@ -90,6 +91,7 @@ const ViewSettings = (() => {
             UI.toast(`Mês resetado: ${res.transactions} lançamento(s) e ${res.cardLaunches} item(ns) de cartão removidos.`, 'success');
             App.rerender();
           } }, 'Resetar mês selecionado'),
+          restoreSlot,
         ]),
         el('div', { class: 'divider' }),
         el('div', {}, [
@@ -110,8 +112,16 @@ const ViewSettings = (() => {
       ]),
     ]);
     container.appendChild(dangerCard);
+    Store.getLastMonthReset().then((snap) => {
+      if (!snap) return;
+      restoreSlot.appendChild(el('button', { class: 'btn btn-ghost btn-sm mt-8', onclick: async () => {
+        const res = await Store.restoreLastMonthReset();
+        UI.toast(`Restaurado: ${res.transactions} lançamento(s) e ${res.cardLaunches} item(ns) de cartão de ${Calc.monthLabel(res.monthRef)}.`, 'success');
+        App.rerender();
+      } }, `↩️ Restaurar ${Calc.monthLabel(snap.monthRef)} (resetado)`));
+    });
 
-    container.appendChild(el('div', { class: 'text-xs text-muted mt-14', style: 'text-align:center;padding:20px 0' }, 'Planejador Financeiro Mensal · dados armazenados localmente neste dispositivo'));
+    container.appendChild(el('div', { class: 'text-xs text-muted mt-14', style: 'text-align:center;padding:20px 0' }, `Planejador Financeiro Mensal · v${App.version} · dados armazenados localmente neste dispositivo`));
   }
 
   async function exportJSON() {
