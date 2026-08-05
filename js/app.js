@@ -1,6 +1,7 @@
 // app.js — casca da aplicação: roteamento, navegação, seletor de mês, inicialização.
 const App = (() => {
   const { el } = UI;
+  const APP_VERSION = '1.3.0'; // acompanha a versão do cache em sw.js (CACHE_NAME) — suba os dois juntos a cada release
 
   const state = {
     route: 'dashboard',
@@ -285,7 +286,7 @@ const App = (() => {
     }
   }
 
-  return { state, navigate, rerender, init, promptInstall, setStartMonth, clearStartMonth };
+  return { state, navigate, rerender, init, promptInstall, setStartMonth, clearStartMonth, version: APP_VERSION };
 })();
 
 window.addEventListener('DOMContentLoaded', () => {
