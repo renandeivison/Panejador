@@ -1,5 +1,5 @@
 // sw.js — Service Worker: cache do app shell para funcionamento 100% offline.
-const CACHE_NAME = 'planejador-financeiro-v1.1';
+const CACHE_NAME = 'planejador-financeiro-v1.3.0'; // mantenha em sincronia com APP_VERSION em js/app.js
 const ASSETS = [
   './',
   './index.html',
